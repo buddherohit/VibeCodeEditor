@@ -166,25 +166,30 @@ async function generateSuggestion(prompt: string): Promise<string> {
 
   // 2. Try Gemini API first if configured
   if (process.env.GEMINI_API_KEY) {
-    try {
-      const { GoogleGenerativeAI } = await import("@google/generative-ai");
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-      const result = await model.generateContent({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 250,
-        },
-      });
-      let text = result.response.text();
-      if (text.includes("```")) {
-        const codeMatch = text.match(/```[\w]*\n?([\s\S]*?)```/);
-        text = codeMatch ? codeMatch[1].trim() : text;
+    const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash"];
+    for (const modelName of candidateModels) {
+      try {
+        const { GoogleGenerativeAI } = await import("@google/generative-ai");
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 250,
+          },
+        });
+        let text = result.response.text();
+        if (text.includes("```")) {
+          const codeMatch = text.match(/```[\w]*\n?([\s\S]*?)```/);
+          text = codeMatch ? codeMatch[1].trim() : text;
+        }
+        if (text) {
+          return text.replace(/\|CURSOR\|/g, "").trim();
+        }
+      } catch (e) {
+        // try next model
       }
-      return text.replace(/\|CURSOR\|/g, "").trim();
-    } catch (e) {
-      console.warn("Gemini code suggestion failed, attempting local fallback:", e);
     }
   }
 
