@@ -73,6 +73,7 @@ const MainPlaygroundPage: React.FC = () => {
     onCancel: () => {},
   });
 
+  const [isPreviewVisible, setIsPreviewVisible] = useState(true);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [editorSettings, setEditorSettings] = useState({
     theme: "modern-dark",
