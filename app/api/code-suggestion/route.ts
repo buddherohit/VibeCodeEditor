@@ -128,7 +128,43 @@ Generate suggestion:`
  * Generate suggestion using AI service (Gemini cloud or Ollama local)
  */
 async function generateSuggestion(prompt: string): Promise<string> {
-  // 1. Try Gemini API first if configured
+  // 1. Try ExperientialLabs / Astra
+  const expKey = process.env.EXPERIENTIAL_API_KEY || process.env.ASTRA_API_KEY;
+  if (expKey) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const response = await fetch("https://api.experientiallabs.ai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${expKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "deepseek-v4-flash",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 150,
+          temperature: 0.2,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const data = await response.json();
+        let suggestion = data.choices?.[0]?.message?.content || "";
+        if (suggestion.includes("```")) {
+          const codeMatch = suggestion.match(/```[\w]*\n?([\s\S]*?)```/);
+          suggestion = codeMatch ? codeMatch[1].trim() : suggestion;
+        }
+        return suggestion.replace(/\|CURSOR\|/g, "").trim();
+      }
+    } catch (e) {
+      // silently fallback
+    }
+  }
+
+  // 2. Try Gemini API first if configured
   if (process.env.GEMINI_API_KEY) {
     try {
       const { GoogleGenerativeAI } = await import("@google/generative-ai");
