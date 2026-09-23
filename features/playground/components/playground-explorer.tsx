@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { ChevronRight, File, Folder, Plus, FilePlus, FolderPlus, MoreHorizontal, Trash2, Edit3 } from "lucide-react"
+import { ChevronRight, Plus, FilePlus, FolderPlus, MoreHorizontal, Trash2, Edit3 } from "lucide-react"
+import { FileIcon, FolderIcon } from "@/components/file-icon"
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
@@ -272,8 +273,8 @@ function TemplateNode({
       <SidebarMenuItem>
         <div className="flex items-center group">
           <SidebarMenuButton isActive={isSelected} onClick={() => onFileSelect?.(file)} className="flex-1">
-            <File className="h-4 w-4 mr-2 shrink-0" />
-            <span>{fileName}</span>
+            <FileIcon filename={file.filename} fileExtension={file.fileExtension} className="mr-2" />
+            <span className="truncate">{fileName}</span>
           </SidebarMenuButton>
 
           <DropdownMenu>
@@ -385,8 +386,8 @@ function TemplateNode({
             <CollapsibleTrigger asChild>
               <SidebarMenuButton className="flex-1">
                 <ChevronRight className="transition-transform" />
-                <Folder className="h-4 w-4 mr-2 shrink-0" />
-                <span>{folderName}</span>
+                <FolderIcon folderName={folderName} isOpen={isOpen} className="mr-2" />
+                <span className="truncate">{folderName}</span>
               </SidebarMenuButton>
             </CollapsibleTrigger>
 

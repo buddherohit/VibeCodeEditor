@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronRight, File, Folder } from "lucide-react"
+import { ChevronRight } from "lucide-react"
+import { FileIcon, FolderIcon } from "@/components/file-icon"
 import { cn } from "@/lib/utils"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 
@@ -58,7 +59,7 @@ function FileTreeNode({ item, onFileSelect, selectedFile, level }: FileTreeNodeP
         )}
         onClick={() => onFileSelect(item)}
       >
-        <File className="h-4 w-4 mr-2 shrink-0" />
+        <FileIcon filename={item.filename} fileExtension={item.fileextension} className="mr-2" />
         <span className="truncate">{fileName}</span>
       </div>
     )
@@ -70,7 +71,7 @@ function FileTreeNode({ item, onFileSelect, selectedFile, level }: FileTreeNodeP
         <Collapsible open={expanded} onOpenChange={setExpanded} className="w-full">
           <CollapsibleTrigger className="flex items-center py-1 px-2 text-sm w-full hover:bg-accent/50 rounded-md">
             <ChevronRight className={cn("h-4 w-4 mr-1 shrink-0 transition-transform", expanded && "rotate-90")} />
-            <Folder className="h-4 w-4 mr-2 shrink-0" />
+            <FolderIcon folderName={item.foldername} isOpen={expanded} className="mr-2" />
             <span className="truncate">{item.foldername}</span>
           </CollapsibleTrigger>
           <CollapsibleContent className="pl-4 border-l border-border/50 ml-3 mt-1">

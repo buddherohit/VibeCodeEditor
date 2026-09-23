@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { downloadProjectAsZip } from "@/lib/zip-export";
 import { EditorSettingsModal } from "@/components/modal/editor-settings-modal";
+import { FileIcon } from "@/components/file-icon";
 
 import {
   DropdownMenu,
@@ -596,12 +597,17 @@ const MainPlaygroundPage: React.FC = () => {
                             className="relative h-8 px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm group"
                           >
                             <div className="flex items-center gap-2">
-                              <FileText className="h-3 w-3" />
-                              <span>
+                              <FileIcon
+                                filename={file.filename}
+                                fileExtension={file.fileExtension}
+                                size={14}
+                                className="h-3.5 w-3.5"
+                              />
+                              <span className="font-medium text-xs">
                                 {file.filename}.{file.fileExtension}
                               </span>
                               {file.hasUnsavedChanges && (
-                                <span className="h-2 w-2 rounded-full bg-orange-500" />
+                                <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
                               )}
                               <span
                                 className="ml-2 h-4 w-4 hover:bg-destructive hover:text-destructive-foreground rounded-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
