@@ -22,6 +22,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { downloadProjectAsZip } from "@/lib/zip-export";
+import { EditorSettingsModal } from "@/components/modal/editor-settings-modal";
 
 import {
   DropdownMenu,
@@ -66,7 +67,31 @@ const MainPlaygroundPage: React.FC = () => {
     onCancel: () => {},
   });
 
-  const [isPreviewVisible, setIsPreviewVisible] = useState(true);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [editorSettings, setEditorSettings] = useState({
+    theme: "modern-dark",
+    fontSize: 14,
+    wordWrap: true,
+    minimap: true,
+    tabSize: 2,
+  });
+
+  // Load editor settings from localStorage if available
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("vibecode_editor_settings");
+      if (saved) {
+        setEditorSettings(JSON.parse(saved));
+      }
+    } catch (e) {}
+  }, []);
+
+  const handleSaveEditorSettings = (newSettings: typeof editorSettings) => {
+    setEditorSettings(newSettings);
+    try {
+      localStorage.setItem("vibecode_editor_settings", JSON.stringify(newSettings));
+    } catch (e) {}
+  };
 
   // Custom hooks
   const { playgroundData, templateData, isLoading, error, saveTemplateData } =
@@ -526,6 +551,9 @@ const MainPlaygroundPage: React.FC = () => {
                     >
                       {isPreviewVisible ? "Hide" : "Show"} Preview
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setIsSettingsModalOpen(true)}>
+                      Editor Preferences
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={handleSaveAll} disabled={!hasUnsavedChanges}>
                       Save All Files
                     </DropdownMenuItem>
@@ -609,6 +637,13 @@ const MainPlaygroundPage: React.FC = () => {
                         onContentChange={(value) =>
                           activeFileId && updateFileContent(activeFileId, value)
                         }
+                        theme={editorSettings.theme}
+                        customOptions={{
+                          fontSize: editorSettings.fontSize,
+                          wordWrap: editorSettings.wordWrap ? "on" : "off",
+                          tabSize: editorSettings.tabSize,
+                          minimap: { enabled: editorSettings.minimap },
+                        }}
                         suggestion={aiSuggestions.suggestion}
                         suggestionLoading={aiSuggestions.isLoading}
                         suggestionPosition={aiSuggestions.position}
@@ -658,12 +693,19 @@ const MainPlaygroundPage: React.FC = () => {
         </SidebarInset>
 
       <ConfirmationDialog
-      isOpen={confirmationDialog.isOpen}
-      title={confirmationDialog.title}
-      description={confirmationDialog.description}
-      onConfirm={confirmationDialog.onConfirm}
-      onCancel={confirmationDialog.onCancel}
-      setIsOpen={(open) => setConfirmationDialog((prev) => ({ ...prev, isOpen: open }))}
+        isOpen={confirmationDialog.isOpen}
+        title={confirmationDialog.title}
+        description={confirmationDialog.description}
+        onConfirm={confirmationDialog.onConfirm}
+        onCancel={confirmationDialog.onCancel}
+        setIsOpen={(open) => setConfirmationDialog((prev) => ({ ...prev, isOpen: open }))}
+      />
+
+      <EditorSettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        settings={editorSettings}
+        onSaveSettings={handleSaveEditorSettings}
       />
       </>
     </TooltipProvider>
@@ -671,3 +713,4 @@ const MainPlaygroundPage: React.FC = () => {
 };
 
 export default MainPlaygroundPage;
+

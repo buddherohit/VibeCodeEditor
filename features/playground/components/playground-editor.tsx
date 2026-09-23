@@ -15,6 +15,8 @@ interface PlaygroundEditorProps {
   onAcceptSuggestion: (editor: any, monaco: any) => void
   onRejectSuggestion: (editor: any) => void
   onTriggerSuggestion: (type: string, editor: any) => void
+  customOptions?: Record<string, any>
+  theme?: string
 }
 
 export const PlaygroundEditor = ({
@@ -27,6 +29,8 @@ export const PlaygroundEditor = ({
   onAcceptSuggestion,
   onRejectSuggestion,
   onTriggerSuggestion,
+  customOptions = {},
+  theme = "modern-dark",
 }: PlaygroundEditorProps) => {
   const editorRef = useRef<any>(null)
   const monacoRef = useRef<Monaco | null>(null)
@@ -542,7 +546,11 @@ export const PlaygroundEditor = ({
         onChange={(value) => onContentChange(value || "")}
         onMount={handleEditorDidMount}
         language={activeFile ? getEditorLanguage(activeFile.fileExtension || "") : "plaintext"}
-        options={defaultEditorOptions}
+        theme={theme}
+        options={{
+          ...defaultEditorOptions,
+          ...customOptions,
+        }}
       />
     </div>
   )
