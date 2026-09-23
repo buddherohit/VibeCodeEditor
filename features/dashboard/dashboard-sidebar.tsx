@@ -65,10 +65,14 @@ export function DashboardSidebar({ initialPlaygroundData }: { initialPlaygroundD
   return (
     <Sidebar variant="inset" collapsible="icon" className="border-1 border-r">
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-4 py-3 justify-center">
-          <Image src={"/logo.svg"} alt="logo" height={60} width={60} />
-        </div>
-       
+        <Link href="/" className="flex items-center gap-2.5 px-3 py-2 justify-start hover:opacity-90 transition">
+          <div className="relative w-8 h-8 rounded-lg overflow-hidden shadow-sm shrink-0">
+            <Image src={"/logo.svg"} alt="VibeCode Logo" fill className="object-contain" />
+          </div>
+          <span className="font-extrabold text-base tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-zinc-900 to-zinc-600 dark:from-white dark:to-zinc-300">
+            Vibe<span className="text-cyan-500">Code</span>
+          </span>
+        </Link>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
