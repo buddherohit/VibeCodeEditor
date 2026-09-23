@@ -7,7 +7,8 @@ import { CheckCircle, Loader2, XCircle, RotateCw, ExternalLink, Globe, Play } fr
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import TerminalComponent from "./terminal";
+import dynamic from "next/dynamic";
+const TerminalComponent = dynamic(() => import("./terminal"), { ssr: false });
 import { WebContainer } from "@webcontainer/api";
 
 interface WebContainerPreviewProps {
