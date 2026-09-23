@@ -19,31 +19,35 @@ async function generateWithGemini(messages: ChatMessage[]): Promise<string | nul
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
 
-  try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
-      systemInstruction: "You are an expert AI coding assistant built into VibeCode Web IDE. You help developers write clean, robust code, debug issues, explain concepts, and provide best practices. Format all code cleanly in markdown with language tags.",
-    });
+  const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash"];
 
-    const formattedHistory = messages.slice(0, -1).map((m) => ({
-      role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: m.content }],
-    }));
+  for (const modelName of candidateModels) {
+    try {
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        systemInstruction: "You are an expert AI coding assistant built into VibeCode Web IDE. You help developers write clean, robust code, debug issues, explain concepts, and provide best practices. Format all code cleanly in markdown with language tags.",
+      });
 
-    const lastMessage = messages[messages.length - 1]?.content || "Help me with this code";
+      const formattedHistory = messages.slice(0, -1).map((m) => ({
+        role: m.role === "assistant" ? "model" : "user",
+        parts: [{ text: m.content }],
+      }));
 
-    const chat = model.startChat({
-      history: formattedHistory,
-    });
+      const lastMessage = messages[messages.length - 1]?.content || "Help me with this code";
 
-    const result = await chat.sendMessage(lastMessage);
-    const text = result.response.text();
-    return text;
-  } catch (error) {
-    console.warn("Gemini API call failed, attempting fallback:", error);
-    return null;
+      const chat = model.startChat({
+        history: formattedHistory,
+      });
+
+      const result = await chat.sendMessage(lastMessage);
+      const text = result.response.text();
+      if (text) return text;
+    } catch (error) {
+      // Try next model
+    }
   }
+  return null;
 }
 
 async function generateWithOllama(messages: ChatMessage[]): Promise<string | null> {
