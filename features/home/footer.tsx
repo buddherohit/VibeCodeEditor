@@ -49,11 +49,23 @@ export function Footer() {
           </a>
         </div>
 
-        {/* Copyright */}
-        <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 font-medium">
-          <span>Built with</span>
-          <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
-          <span>for Developers &copy; {new Date().getFullYear()} VibeCode</span>
+        {/* Developer Attribution & Copyright */}
+        <div className="flex flex-col sm:flex-row items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 font-medium">
+          <div className="flex items-center gap-1.5">
+            <span>Designed & Developed with</span>
+            <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500 animate-pulse" />
+            <span>by</span>
+            <a
+              href="https://github.com/buddherohit"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-bold text-zinc-900 dark:text-white hover:text-cyan-500 dark:hover:text-cyan-400 transition-colors underline decoration-cyan-500/50 underline-offset-2"
+            >
+              Rohit Buddhe
+            </a>
+          </div>
+          <span className="hidden sm:inline text-zinc-400">&bull;</span>
+          <span>&copy; {new Date().getFullYear()} VibeCode Editor</span>
         </div>
       </div>
     </footer>
