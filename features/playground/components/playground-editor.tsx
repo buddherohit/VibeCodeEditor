@@ -550,7 +550,7 @@ export const PlaygroundEditor = ({
         options={{
           ...defaultEditorOptions,
           ...customOptions,
-        }}
+        } as any}
       />
     </div>
   )

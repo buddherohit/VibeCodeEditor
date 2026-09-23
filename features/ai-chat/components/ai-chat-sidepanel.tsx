@@ -1149,11 +1149,11 @@ export const AIChatSidePanel: React.FC<AIChatSidePanelProps> = ({
                             code: ({
                               children,
                               className,
-                              inline: _inline,
-                            }) => (
+                              ...props
+                            }: any) => (
                               <EnhancedCodeBlock
                                 className={className}
-                                inline={_inline as boolean}
+                                inline={props.inline as boolean}
                                 onInsert={
                                   onInsertCode
                                     ? (code) => handleInsertCode(code)
