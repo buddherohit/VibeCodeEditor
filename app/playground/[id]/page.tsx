@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useRef, useEffect } from "react";
 import { useState, useCallback } from "react";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
@@ -15,9 +15,13 @@ import {
   Save,
   X,
   Settings,
+  Download,
+  CheckCircle2,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { downloadProjectAsZip } from "@/lib/zip-export";
 
 import {
   DropdownMenu,
@@ -178,6 +182,10 @@ const MainPlaygroundPage: React.FC = () => {
     [handleRenameFolder, saveTemplateData]
   );
 
+  const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved");
+  const [isExporting, setIsExporting] = useState(false);
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const activeFile = openFiles.find((file) => file.id === activeFileId);
   const hasUnsavedChanges = openFiles.some((file) => file.hasUnsavedChanges);
 
@@ -186,7 +194,7 @@ const MainPlaygroundPage: React.FC = () => {
   };
 
   const handleSave = useCallback(
-    async (fileId?: string) => {
+    async (fileId?: string, silent = false) => {
       const targetFileId = fileId || activeFileId;
       if (!targetFileId) return;
 
@@ -197,11 +205,15 @@ const MainPlaygroundPage: React.FC = () => {
       if (!latestTemplateData) return;
 
       try {
+        setSaveStatus("saving");
         const filePath = findFilePath(fileToSave, latestTemplateData);
         if (!filePath) {
-          toast.error(
-            `Could not find path for file: ${fileToSave.filename}.${fileToSave.fileExtension}`
-          );
+          if (!silent) {
+            toast.error(
+              `Could not find path for file: ${fileToSave.filename}.${fileToSave.fileExtension}`
+            );
+          }
+          setSaveStatus("unsaved");
           return;
         }
 
@@ -250,15 +262,21 @@ const MainPlaygroundPage: React.FC = () => {
             : f
         );
         setOpenFiles(updatedOpenFiles);
+        setSaveStatus("saved");
 
-        toast.success(
-          `Saved ${fileToSave.filename}.${fileToSave.fileExtension}`
-        );
+        if (!silent) {
+          toast.success(
+            `Saved ${fileToSave.filename}.${fileToSave.fileExtension}`
+          );
+        }
       } catch (error) {
+        setSaveStatus("unsaved");
         console.error("Error saving file:", error);
-        toast.error(
-          `Failed to save ${fileToSave.filename}.${fileToSave.fileExtension}`
-        );
+        if (!silent) {
+          toast.error(
+            `Failed to save ${fileToSave.filename}.${fileToSave.fileExtension}`
+          );
+        }
         throw error;
       }
     },
@@ -282,10 +300,60 @@ const MainPlaygroundPage: React.FC = () => {
     }
 
     try {
-      await Promise.all(unsavedFiles.map((f) => handleSave(f.id)));
+      setSaveStatus("saving");
+      await Promise.all(unsavedFiles.map((f) => handleSave(f.id, true)));
+      setSaveStatus("saved");
       toast.success(`Saved ${unsavedFiles.length} file(s)`);
     } catch (error) {
+      setSaveStatus("unsaved");
       toast.error("Failed to save some files");
+    }
+  };
+
+  // Debounced Auto-Save effect (saves 2.5s after editing stops)
+  useEffect(() => {
+    if (hasUnsavedChanges) {
+      setSaveStatus("unsaved");
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+      autoSaveTimerRef.current = setTimeout(async () => {
+        try {
+          const unsaved = useFileExplorer.getState().openFiles.filter((f) => f.hasUnsavedChanges);
+          if (unsaved.length > 0) {
+            setSaveStatus("saving");
+            await Promise.all(unsaved.map((f) => handleSave(f.id, true)));
+            setSaveStatus("saved");
+          }
+        } catch (e) {
+          setSaveStatus("unsaved");
+        }
+      }, 2500);
+    } else {
+      setSaveStatus("saved");
+    }
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [hasUnsavedChanges, openFiles, handleSave]);
+
+  const handleExportZip = async () => {
+    const currentData = useFileExplorer.getState().templateData;
+    if (!currentData) {
+      toast.error("No project files available to export");
+      return;
+    }
+    try {
+      setIsExporting(true);
+      await downloadProjectAsZip(currentData, playgroundData?.title || playgroundData?.name || "vibecode-project");
+      toast.success("Project downloaded as ZIP successfully!");
+    } catch (e) {
+      toast.error("Failed to download project ZIP");
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -379,18 +447,34 @@ const MainPlaygroundPage: React.FC = () => {
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="mr-2 h-4" />
 
-            <div className="flex flex-1 items-center gap-2">
+            <div className="flex flex-1 items-center justify-between gap-2">
               <div className="flex flex-col flex-1">
-                <h1 className="text-sm font-medium">
-                  {playgroundData?.name || "Code Playground"}
-                </h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-sm font-medium">
+                    {playgroundData?.title || playgroundData?.name || "Code Playground"}
+                  </h1>
+                  {saveStatus === "saving" && (
+                    <span className="inline-flex items-center text-xs text-blue-500 gap-1 animate-pulse">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Saving...
+                    </span>
+                  )}
+                  {saveStatus === "saved" && !hasUnsavedChanges && (
+                    <span className="inline-flex items-center text-xs text-green-600 dark:text-green-400 gap-1">
+                      <CheckCircle2 className="h-3 w-3" /> Saved
+                    </span>
+                  )}
+                  {saveStatus === "unsaved" && (
+                    <span className="inline-flex items-center text-xs text-amber-500 gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> Unsaved changes
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  {openFiles.length} file(s) open
-                  {hasUnsavedChanges && " • Unsaved changes"}
+                  {openFiles.length} file(s) open • Auto-save enabled
                 </p>
               </div>
 
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -399,10 +483,10 @@ const MainPlaygroundPage: React.FC = () => {
                       onClick={() => handleSave()}
                       disabled={!activeFile || !activeFile.hasUnsavedChanges}
                     >
-                      <Save className="h-4 w-4" />
+                      <Save className="h-4 w-4 mr-1" /> Save
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Save (Ctrl+S)</TooltipContent>
+                  <TooltipContent>Save Current File (Ctrl+S)</TooltipContent>
                 </Tooltip>
 
                 <Tooltip>
@@ -410,13 +494,18 @@ const MainPlaygroundPage: React.FC = () => {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={handleSaveAll}
-                      disabled={!hasUnsavedChanges}
+                      onClick={handleExportZip}
+                      disabled={isExporting}
                     >
-                      <Save className="h-4 w-4" /> All
+                      {isExporting ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                      ) : (
+                        <Download className="h-4 w-4 mr-1" />
+                      )}
+                      Export ZIP
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Save All (Ctrl+Shift+S)</TooltipContent>
+                  <TooltipContent>Download Project as ZIP</TooltipContent>
                 </Tooltip>
 
                 <ToggleAI
@@ -437,6 +526,12 @@ const MainPlaygroundPage: React.FC = () => {
                     >
                       {isPreviewVisible ? "Hide" : "Show"} Preview
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleSaveAll} disabled={!hasUnsavedChanges}>
+                      Save All Files
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleExportZip}>
+                      Download Project ZIP
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={closeAllFiles}>
                       Close All Files
@@ -446,6 +541,7 @@ const MainPlaygroundPage: React.FC = () => {
               </div>
             </div>
           </header>
+
 
           <div className="h-[calc(100vh-4rem)]">
             {openFiles.length > 0 ? (
