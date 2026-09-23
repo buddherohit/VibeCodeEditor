@@ -3,8 +3,10 @@
 import React, { useEffect, useState, useRef } from "react";
 import type { TemplateFolder } from "@/features/playground/libs/path-to-json";
 import { transformToWebContainerFormat } from "../hooks/transformer";
-import { CheckCircle, Loader2, XCircle } from "lucide-react";
+import { CheckCircle, Loader2, XCircle, RotateCw, ExternalLink, Globe, Play } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import TerminalComponent from "./terminal";
 import { WebContainer } from "@webcontainer/api";
 
@@ -15,7 +17,7 @@ interface WebContainerPreviewProps {
   error: string | null;
   instance: WebContainer | null;
   writeFileSync: (path: string, content: string) => Promise<void>;
-  forceResetup?: boolean; // Optional prop to force re-setup
+  forceResetup?: boolean;
 }
 
 const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
@@ -28,6 +30,7 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
   forceResetup = false,
 }) => {
   const [previewUrl, setPreviewUrl] = useState<string>("");
+  const [iframeKey, setIframeKey] = useState<number>(0);
   const [loadingState, setLoadingState] = useState({
     transforming: false,
     mounting: false,
@@ -40,7 +43,7 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
   const [setupError, setSetupError] = useState<string | null>(null);
   const [isSetupComplete, setIsSetupComplete] = useState(false);
   const [isSetupInProgress, setIsSetupInProgress] = useState(false);
-  
+
   // Ref to access terminal methods
   const terminalRef = useRef<any>(null);
 
@@ -69,47 +72,13 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
       try {
         setIsSetupInProgress(true);
         setSetupError(null);
-        
-        // Check if server is already running by testing if files are already mounted
-        try {
-          const packageJsonExists = await instance.fs.readFile('package.json', 'utf8');
-          if (packageJsonExists) {
-            // Files are already mounted, just reconnect to existing server
-            if (terminalRef.current?.writeToTerminal) {
-              terminalRef.current.writeToTerminal("🔄 Reconnecting to existing WebContainer session...\r\n");
-            }
-            
-            // Check if server is already running
-            instance.on("server-ready", (port: number, url: string) => {
-              console.log(`Reconnected to server on port ${port} at ${url}`);
-              if (terminalRef.current?.writeToTerminal) {
-                terminalRef.current.writeToTerminal(`🌐 Reconnected to server at ${url}\r\n`);
-              }
-              setPreviewUrl(url);
-              setLoadingState((prev) => ({
-                ...prev,
-                starting: false,
-                ready: true,
-              }));
-              setIsSetupComplete(true);
-              setIsSetupInProgress(false);
-            });
-            
-            setCurrentStep(4);
-            setLoadingState((prev) => ({ ...prev, starting: true }));
-            return;
-          }
-        } catch (e) {
-          // Files don't exist, proceed with normal setup
-        }
-        
+
         // Step 1: Transform data
         setLoadingState((prev) => ({ ...prev, transforming: true }));
         setCurrentStep(1);
-        
-        // Write to terminal
+
         if (terminalRef.current?.writeToTerminal) {
-          terminalRef.current.writeToTerminal("🔄 Transforming template data...\r\n");
+          terminalRef.current.writeToTerminal("🔄 Transforming template files...\r\n");
         }
 
         // @ts-ignore
@@ -126,9 +95,9 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
         if (terminalRef.current?.writeToTerminal) {
           terminalRef.current.writeToTerminal("📁 Mounting files to WebContainer...\r\n");
         }
-        
+
         await instance.mount(files);
-        
+
         if (terminalRef.current?.writeToTerminal) {
           terminalRef.current.writeToTerminal("✅ Files mounted successfully\r\n");
         }
@@ -142,16 +111,14 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
 
         // Step 3: Install dependencies
         if (terminalRef.current?.writeToTerminal) {
-          terminalRef.current.writeToTerminal("📦 Installing dependencies...\r\n");
+          terminalRef.current.writeToTerminal("📦 Running npm install...\r\n");
         }
-        
+
         const installProcess = await instance.spawn("npm", ["install"]);
 
-        // Stream install output to terminal
         installProcess.output.pipeTo(
           new WritableStream({
             write(data) {
-              // Write directly to terminal
               if (terminalRef.current?.writeToTerminal) {
                 terminalRef.current.writeToTerminal(data);
               }
@@ -162,7 +129,7 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
         const installExitCode = await installProcess.exit;
 
         if (installExitCode !== 0) {
-          throw new Error(`Failed to install dependencies. Exit code: ${installExitCode}`);
+          throw new Error(`npm install exited with code ${installExitCode}`);
         }
 
         if (terminalRef.current?.writeToTerminal) {
@@ -176,18 +143,29 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
         }));
         setCurrentStep(4);
 
-        // Step 4: Start the server
-        if (terminalRef.current?.writeToTerminal) {
-          terminalRef.current.writeToTerminal("🚀 Starting development server...\r\n");
+        // Step 4: Determine start command and start the server
+        let startCmd = ["run", "dev"];
+        try {
+          const pkgJsonStr = await instance.fs.readFile("package.json", "utf8");
+          const pkgJson = JSON.parse(pkgJsonStr);
+          if (pkgJson.scripts?.dev) {
+            startCmd = ["run", "dev"];
+          } else if (pkgJson.scripts?.start) {
+            startCmd = ["run", "start"];
+          }
+        } catch (e) {
+          console.warn("Could not read package.json scripts, defaulting to npm run dev");
         }
-        
-        const startProcess = await instance.spawn("npm", ["run", "start"]);
+
+        if (terminalRef.current?.writeToTerminal) {
+          terminalRef.current.writeToTerminal(`🚀 Starting server with: npm ${startCmd.join(" ")}...\r\n`);
+        }
 
         // Listen for server ready event
         instance.on("server-ready", (port: number, url: string) => {
           console.log(`Server ready on port ${port} at ${url}`);
           if (terminalRef.current?.writeToTerminal) {
-            terminalRef.current.writeToTerminal(`🌐 Server ready at ${url}\r\n`);
+            terminalRef.current.writeToTerminal(`🌐 Live preview available at: ${url}\r\n`);
           }
           setPreviewUrl(url);
           setLoadingState((prev) => ({
@@ -199,7 +177,8 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
           setIsSetupInProgress(false);
         });
 
-        // Handle start process output - stream to terminal
+        const startProcess = await instance.spawn("npm", startCmd);
+
         startProcess.output.pipeTo(
           new WritableStream({
             write(data) {
@@ -209,15 +188,14 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
             },
           })
         );
-
       } catch (err) {
         console.error("Error setting up container:", err);
         const errorMessage = err instanceof Error ? err.message : String(err);
-        
+
         if (terminalRef.current?.writeToTerminal) {
           terminalRef.current.writeToTerminal(`❌ Error: ${errorMessage}\r\n`);
         }
-        
+
         setSetupError(errorMessage);
         setIsSetupInProgress(false);
         setLoadingState({
@@ -233,22 +211,24 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
     setupContainer();
   }, [instance, templateData, isSetupComplete, isSetupInProgress]);
 
-  // Cleanup function to prevent memory leaks
-  useEffect(() => {
-    return () => {
-      // Don't kill processes or cleanup when component unmounts
-      // The WebContainer should persist across component re-mounts
-    };
-  }, []);
+  const handleRefreshPreview = () => {
+    setIframeKey((prev) => prev + 1);
+  };
+
+  const handleOpenExternal = () => {
+    if (previewUrl) {
+      window.open(previewUrl, "_blank");
+    }
+  };
 
   if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="text-center space-y-4 max-w-md p-6 rounded-lg bg-gray-50 dark:bg-gray-900">
+        <div className="text-center space-y-4 max-w-md p-6 rounded-lg bg-gray-50 dark:bg-zinc-900 border">
           <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto" />
           <h3 className="text-lg font-medium">Initializing WebContainer</h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Setting up the environment for your project...
+          <p className="text-sm text-muted-foreground">
+            Booting the in-browser runtime environment...
           </p>
         </div>
       </div>
@@ -257,13 +237,24 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
 
   if (error || setupError) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-6 rounded-lg max-w-md">
+      <div className="h-full flex items-center justify-center p-4">
+        <div className="bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 p-6 rounded-lg max-w-md border border-red-200 dark:border-red-900">
           <div className="flex items-center gap-2 mb-3">
             <XCircle className="h-5 w-5" />
-            <h3 className="font-semibold">Error</h3>
+            <h3 className="font-semibold">Setup Error</h3>
           </div>
-          <p className="text-sm">{error || setupError}</p>
+          <p className="text-sm mb-4">{error || setupError}</p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setIsSetupComplete(false);
+              setIsSetupInProgress(false);
+              setSetupError(null);
+            }}
+          >
+            <RotateCw className="h-4 w-4 mr-2" /> Retry Setup
+          </Button>
         </div>
       </div>
     );
@@ -275,81 +266,132 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
     } else if (stepIndex === currentStep) {
       return <Loader2 className="h-5 w-5 animate-spin text-blue-500" />;
     } else {
-      return <div className="h-5 w-5 rounded-full border-2 border-gray-300" />;
+      return <div className="h-5 w-5 rounded-full border-2 border-muted" />;
     }
   };
 
   const getStepText = (stepIndex: number, label: string) => {
     const isActive = stepIndex === currentStep;
     const isComplete = stepIndex < currentStep;
-    
+
     return (
-      <span className={`text-sm font-medium ${
-        isComplete ? 'text-green-600' : 
-        isActive ? 'text-blue-600' : 
-        'text-gray-500'
-      }`}>
+      <span
+        className={`text-sm font-medium ${
+          isComplete
+            ? "text-green-600 dark:text-green-400"
+            : isActive
+            ? "text-blue-600 dark:text-blue-400 font-semibold"
+            : "text-muted-foreground"
+        }`}
+      >
         {label}
       </span>
     );
   };
 
   return (
-    <div className="h-full w-full flex flex-col">
-      {!previewUrl ? (
-        <div className="h-full flex flex-col">
-          <div className="w-full max-w-md p-6 m-5 rounded-lg bg-white dark:bg-zinc-800 shadow-sm mx-auto">
-           
+    <div className="h-full w-full flex flex-col bg-background">
+      {/* Browser address bar / controls */}
+      <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/20 gap-2 shrink-0">
+        <div className="flex items-center gap-1.5">
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            onClick={handleRefreshPreview}
+            disabled={!previewUrl}
+            title="Reload Preview"
+          >
+            <RotateCw className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            onClick={handleOpenExternal}
+            disabled={!previewUrl}
+            title="Open in New Tab"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+          </Button>
+        </div>
 
+        <div className="flex-1 flex items-center gap-2 bg-background border rounded-md px-2.5 py-1 text-xs text-muted-foreground max-w-sm truncate">
+          <Globe className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <span className="truncate">{previewUrl || "http://localhost:3000 (starting...)"}</span>
+        </div>
+
+        <div>
+          {previewUrl ? (
+            <Badge variant="outline" className="text-xs text-green-600 border-green-300 dark:border-green-800 bg-green-50/50 dark:bg-green-950/30">
+              ● Live
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-xs text-amber-600 border-amber-300 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/30">
+              Starting
+            </Badge>
+          )}
+        </div>
+      </div>
+
+      {!previewUrl ? (
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="w-full max-w-md p-6 m-4 rounded-lg bg-card border shadow-sm mx-auto shrink-0">
+            <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+              <Play className="h-4 w-4 text-primary" />
+              Building Runtime Preview
+            </h4>
             <Progress
               value={(currentStep / totalSteps) * 100}
-              className="h-2 mb-6"
+              className="h-2 mb-5"
             />
 
-            <div className="space-y-4 mb-6">
+            <div className="space-y-3">
               <div className="flex items-center gap-3">
                 {getStepIcon(1)}
-                {getStepText(1, "Transforming template data")}
+                {getStepText(1, "Transforming template files")}
               </div>
               <div className="flex items-center gap-3">
                 {getStepIcon(2)}
-                {getStepText(2, "Mounting files")}
+                {getStepText(2, "Mounting virtual filesystem")}
               </div>
               <div className="flex items-center gap-3">
                 {getStepIcon(3)}
-                {getStepText(3, "Installing dependencies")}
+                {getStepText(3, "Installing packages (npm install)")}
               </div>
               <div className="flex items-center gap-3">
                 {getStepIcon(4)}
-                {getStepText(4, "Starting development server")}
+                {getStepText(4, "Starting local dev server")}
               </div>
             </div>
           </div>
 
           {/* Terminal */}
-          <div className="flex-1 p-4">
-            <TerminalComponent 
+          <div className="flex-1 p-3 min-h-0">
+            <TerminalComponent
               ref={terminalRef}
               webContainerInstance={instance}
               theme="dark"
-              className="h-full"
+              className="h-full rounded-md border overflow-hidden"
             />
           </div>
         </div>
       ) : (
-        <div className="h-full flex flex-col">
-          {/* Preview */}
-          <div className="flex-1">
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          {/* Live Preview Iframe */}
+          <div className="flex-1 bg-white dark:bg-zinc-950 relative min-h-0">
             <iframe
+              key={iframeKey}
               src={previewUrl}
               className="w-full h-full border-none"
-              title="WebContainer Preview"
+              title="WebContainer Live Preview"
+              allow="cross-origin-isolated"
             />
           </div>
-          
-          {/* Terminal at bottom when preview is ready */}
-          <div className="h-64 border-t">
-            <TerminalComponent 
+
+          {/* Terminal at bottom when preview is running */}
+          <div className="h-56 border-t min-h-0">
+            <TerminalComponent
               ref={terminalRef}
               webContainerInstance={instance}
               theme="dark"
@@ -362,4 +404,4 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
   );
 };
 
-export default WebContainerPreview;
+export default WebContainerPreview;
