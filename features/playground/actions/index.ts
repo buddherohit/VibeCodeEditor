@@ -66,6 +66,39 @@ export const createPlayground = async (data:{
     }
 }
 
+export const createPlaygroundFromGithub = async (data: {
+  title: string;
+  description?: string;
+  template: "REACT" | "NEXTJS" | "EXPRESS" | "VUE" | "HONO" | "ANGULAR";
+  templateData: TemplateFolder;
+}) => {
+  const { template, title, description, templateData } = data;
+  const user = await currentUser();
+  if (!user?.id) throw new Error("User not authenticated");
+
+  try {
+    const playground = await db.playground.create({
+      data: {
+        title,
+        description: description || "Imported from GitHub",
+        template,
+        userId: user.id,
+        templateFiles: {
+          create: {
+            content: JSON.stringify(templateData),
+          },
+        },
+      },
+    });
+
+    revalidatePath("/dashboard");
+    return playground;
+  } catch (error) {
+    console.error("Error creating playground from github:", error);
+    throw error;
+  }
+};
+
 
 export const getAllPlaygroundForUser = async ()=>{
     const user = await currentUser();
