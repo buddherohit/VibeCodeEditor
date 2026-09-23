@@ -1,125 +1,122 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from "next/server";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface ChatMessage {
-  role: "user" | "assistant"
-  content: string
+  role: "user" | "assistant";
+  content: string;
 }
 
 interface EnhancePromptRequest {
-  prompt: string
+  prompt: string;
   context?: {
-    fileName?: string
-    language?: string
-    codeContent?: string
+    fileName?: string;
+    language?: string;
+    codeContent?: string;
+  };
+}
+
+async function generateWithGemini(messages: ChatMessage[]): Promise<string | null> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({
+      model: "gemini-1.5-flash",
+      systemInstruction: "You are an expert AI coding assistant built into VibeCode Web IDE. You help developers write clean, robust code, debug issues, explain concepts, and provide best practices. Format all code cleanly in markdown with language tags.",
+    });
+
+    const formattedHistory = messages.slice(0, -1).map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }],
+    }));
+
+    const lastMessage = messages[messages.length - 1]?.content || "Help me with this code";
+
+    const chat = model.startChat({
+      history: formattedHistory,
+    });
+
+    const result = await chat.sendMessage(lastMessage);
+    const text = result.response.text();
+    return text;
+  } catch (error) {
+    console.warn("Gemini API call failed, attempting fallback:", error);
+    return null;
   }
 }
 
-async function generateAIResponse(messages: ChatMessage[]) {
-  const systemPrompt = `You are an expert AI coding assistant. You help developers with:
-- Code explanations and debugging
-- Best practices and architecture advice
-- Writing clean, efficient code
-- Troubleshooting errors
-- Code reviews and optimizations
+async function generateWithOllama(messages: ChatMessage[]): Promise<string | null> {
+  const systemPrompt = `You are an expert AI coding assistant. You help developers with code explanations, debugging, best practices, and writing clean code. Always format code using markdown blocks with language tags.`;
 
-Always provide clear, practical answers. When showing code, use proper formatting with language-specific syntax.
-Keep responses concise but comprehensive. Use code blocks with language specification when providing code examples.`
+  const fullMessages = [{ role: "system", content: systemPrompt }, ...messages];
+  const prompt = fullMessages.map((msg) => `${msg.role}: ${msg.content}`).join("\n\n");
 
-  const fullMessages = [{ role: "system", content: systemPrompt }, ...messages]
-
-  const prompt = fullMessages.map((msg) => `${msg.role}: ${msg.content}`).join("\n\n")
-
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 15000)
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12000);
 
   try {
     const response = await fetch("http://localhost:11434/api/generate", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "codellama:latest",
         prompt,
         stream: false,
         options: {
           temperature: 0.7,
-          top_p: 0.9,
           max_tokens: 1000,
-          num_predict: 1000,
-          repeat_penalty: 1.1,
-          context_length: 4096,
         },
       }),
       signal: controller.signal,
-    })
+    });
 
-    clearTimeout(timeoutId)
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error("Error from AI model API:", errorText)
-      throw new Error(`AI model API error: ${response.status} - ${errorText}`)
-    }
-
-    const data = await response.json()
-    if (!data.response) {
-      throw new Error("No response from AI model")
-    }
-    return data.response.trim()
+    clearTimeout(timeoutId);
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.response?.trim() || null;
   } catch (error) {
-    clearTimeout(timeoutId)
-    if ((error as Error).name === "AbortError") {
-      throw new Error("Request timeout: AI model took too long to respond")
-    }
-    console.error("AI generation error:", error)
-    throw error
+    clearTimeout(timeoutId);
+    return null;
   }
 }
 
-async function enhancePrompt(request: EnhancePromptRequest) {
-  const enhancementPrompt = `You are a prompt enhancement assistant. Take the user's basic prompt and enhance it to be more specific, detailed, and effective for a coding AI assistant.
+async function generateAIResponse(messages: ChatMessage[]) {
+  // 1. Try Gemini first if API key is present
+  const geminiResponse = await generateWithGemini(messages);
+  if (geminiResponse) return geminiResponse;
 
-Original prompt: "${request.prompt}"
+  // 2. Try Ollama local model
+  const ollamaResponse = await generateWithOllama(messages);
+  if (ollamaResponse) return ollamaResponse;
 
-Context: ${request.context ? JSON.stringify(request.context, null, 2) : "No additional context"}
-
-Enhanced prompt should:
-- Be more specific and detailed
-- Include relevant technical context
-- Ask for specific examples or explanations
-- Be clear about expected output format
-- Maintain the original intent
-
-Return only the enhanced prompt, nothing else.`
-
-  try {
-    const response = await fetch("http://localhost:11434/api/generate", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "codellama:latest",
-        prompt: enhancementPrompt,
-        stream: false,
-        options: {
-          temperature: 0.3,
-          max_tokens: 500,
-        },
-      }),
-    })
-
-    if (!response.ok) {
-      throw new Error("Failed to enhance prompt")
-    }
-
-    const data = await response.json()
-    return data.response?.trim() || request.prompt
-  } catch (error) {
-    console.error("Prompt enhancement error:", error)
-    return request.prompt // Return original if enhancement fails
+  // 3. Fallback smart assistant response
+  const lastMsg = messages[messages.length - 1]?.content?.toLowerCase() || "";
+  if (lastMsg.includes("react") || lastMsg.includes("component")) {
+    return "Here is a clean React component structure for your project:\n\n```tsx\nimport React, { useState } from 'react';\n\nexport const MyComponent: React.FC = () => {\n  const [state, setState] = useState(false);\n  return (\n    <div className=\"p-4 rounded-lg bg-card\">\n      <h2 className=\"text-lg font-bold\">Interactive Component</h2>\n    </div>\n  );\n};\n```\n\n*(Tip: Add `GEMINI_API_KEY` to `.env.local` to enable full cloud LLM streaming capabilities!)*";
   }
+
+  return "I am your VibeCode AI assistant! 🚀\n\nTo enable full real-time cloud AI power:\n1. Add `GEMINI_API_KEY=your_key` in `.env.local` (from https://aistudio.google.com/app/apikey), OR\n2. Run Ollama locally via `ollama run codellama`.\n\nHow can I help you build today?";
+}
+
+async function enhancePrompt(request: EnhancePromptRequest) {
+  const prompt = request.prompt;
+  if (!prompt) return "";
+
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const result = await model.generateContent(
+        `Enhance this coding prompt to be precise, clear, and include edge cases and syntax best practices. Return only the enhanced prompt text:\n\n"${prompt}"`
+      );
+      return result.response.text().trim();
+    } catch (e) {
+      console.warn("Prompt enhancement with Gemini failed:", e);
+    }
+  }
+
+  return `Please write complete, production-grade code for: ${prompt}. Include TypeScript types, error handling, and modern best practices.`;
 }
 
 export async function POST(req: NextRequest) {
