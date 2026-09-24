@@ -203,8 +203,23 @@ app.listen(PORT, () => console.log(\`⚡ Server listening on port \${PORT}\`));`
           </Link>
         </div>
 
+        {/* 3D Hero Visual Banner */}
+        <div className="mt-12 relative w-full max-w-4xl group">
+          <div className="absolute -inset-1 rounded-3xl bg-gradient-to-r from-purple-600 via-cyan-500 to-emerald-500 opacity-30 blur-2xl group-hover:opacity-50 transition duration-500" />
+          <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-zinc-200/20 dark:border-zinc-800 shadow-2xl bg-zinc-950">
+            <Image
+              src="/hero.png"
+              alt="VibeCode AI Studio Showcase"
+              width={1200}
+              height={750}
+              className="w-full h-auto object-cover transform transition-transform duration-500 group-hover:scale-[1.01]"
+              priority
+            />
+          </div>
+        </div>
+
         {/* Feature Highlights Pills */}
-        <div className="mt-12 flex flex-wrap items-center justify-center gap-6 text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 font-medium">
+        <div className="mt-10 flex flex-wrap items-center justify-center gap-6 text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 font-medium">
           <span className="flex items-center gap-1.5">
             <CheckCircle2 className="w-4 h-4 text-emerald-500" />
             Zero Setup Required
