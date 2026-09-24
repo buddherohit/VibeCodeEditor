@@ -16,6 +16,11 @@ const poppins = Poppins({
 export const metadata: Metadata = {
   title: "VibeCode - Editor",
   description: "VibeCode - Editor - Code Editor For VibeCoders is a free online code editor that lets you write, debug, and run your code in the browser. It is an open source editor that is easy to use and has a simple interface. It is also a great way to learn programming and get started with coding.",
+  icons: {
+    icon: "/icon.png",
+    shortcut: "/icon.png",
+    apple: "/icon.png",
+  },
 };
 
 export default async function RootLayout({
