@@ -27,9 +27,14 @@ export const RunCodeButton: React.FC<RunCodeButtonProps> = ({
   isWeb = false,
   className,
 }) => {
-  const isMac =
-    typeof window !== "undefined" &&
-    navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+  const [isMac, setIsMac] = React.useState(false);
+
+  React.useEffect(() => {
+    if (typeof window !== "undefined" && navigator.platform) {
+      setIsMac(navigator.platform.toUpperCase().indexOf("MAC") >= 0);
+    }
+  }, []);
+
   const shortcutKey = isMac ? "⌘ + ↵" : "Ctrl + Enter";
 
   return (

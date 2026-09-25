@@ -31,27 +31,25 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await auth();
 
-  const session = await auth()
   return (
-    <SessionProvider session={session}>
     <html lang="en" suppressHydrationWarning>
-      <body
-        className={` ${poppins.className} antialiased`}
-      >
-        <ThemeProvider
-        attribute="class"
-        defaultTheme="system"
-        enableSystem
-        disableTransitionOnChange
-        >
+      <body className={`${poppins.className} antialiased`}>
+        <SessionProvider session={session}>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
             <div className="flex flex-col min-h-screen">
-              <Toaster/>
+              <Toaster />
               <div className="flex-1">{children}</div>
             </div>
-        </ThemeProvider>
+          </ThemeProvider>
+        </SessionProvider>
       </body>
     </html>
-    </SessionProvider>
   );
 }
