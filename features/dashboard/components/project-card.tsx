@@ -88,6 +88,13 @@ export default function ProjectCard({
           badgeClass: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30",
           glowClass: "from-rose-500/15 to-pink-500/5",
         };
+      case "BLANK":
+        return {
+          icon: "/custom-code.svg",
+          label: "Custom Canvas",
+          badgeClass: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30",
+          glowClass: "from-purple-500/15 to-indigo-500/5",
+        };
       default:
         return {
           icon: "/logo.svg",

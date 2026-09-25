@@ -1,12 +1,5 @@
-import {
-  File,
-  FileJson,
-  FileCode,
-  FileText,
-  FileImage,
-  Package,
-} from "lucide-react";
-import type React from "react";
+import React from "react";
+import { FileIcon } from "@/components/file-icon";
 
 export function getFileLanguage(filePath: string): string {
   const extension = filePath.split(".").pop()?.toLowerCase() || "";
@@ -14,23 +7,73 @@ export function getFileLanguage(filePath: string): string {
   switch (extension) {
     case "js":
     case "jsx":
+    case "mjs":
+    case "cjs":
       return "javascript";
     case "ts":
     case "tsx":
       return "typescript";
     case "json":
+    case "json5":
+    case "jsonc":
       return "json";
     case "html":
+    case "htm":
       return "html";
     case "css":
       return "css";
     case "scss":
+    case "sass":
+    case "less":
       return "scss";
     case "md":
+    case "mdx":
       return "markdown";
     case "yaml":
     case "yml":
       return "yaml";
+    case "py":
+    case "pyw":
+      return "python";
+    case "c":
+    case "h":
+      return "c";
+    case "cpp":
+    case "cc":
+    case "cxx":
+    case "hpp":
+      return "cpp";
+    case "cs":
+      return "csharp";
+    case "java":
+      return "java";
+    case "kt":
+    case "kts":
+      return "kotlin";
+    case "go":
+      return "go";
+    case "rs":
+      return "rust";
+    case "php":
+      return "php";
+    case "rb":
+      return "ruby";
+    case "swift":
+      return "swift";
+    case "sql":
+      return "sql";
+    case "sh":
+    case "bash":
+    case "zsh":
+      return "shell";
+    case "xml":
+    case "svg":
+      return "xml";
+    case "vue":
+      return "vue";
+    case "graphql":
+    case "gql":
+      return "graphql";
     default:
       return "plaintext";
   }
@@ -40,83 +83,5 @@ export function getFileIcon(filePath: string): React.ReactNode {
   const fileName = filePath.split("/").pop() || "";
   const extension = fileName.split(".").pop()?.toLowerCase() || "";
 
-  const iconProps = { className: "h-4 w-4 mr-2" };
-
-  // Special files
-  if (fileName === "package.json") {
-    return (
-      <Package
-        {...iconProps}
-        className={`${iconProps.className} text-orange-500`}
-      />
-    );
-  }
-
-  // By extension
-  switch (extension) {
-    case "json":
-      return (
-        <FileJson
-          {...iconProps}
-          className={`${iconProps.className} text-yellow-500`}
-        />
-      );
-    case "js":
-    case "jsx":
-      return (
-        <FileCode
-          {...iconProps}
-          className={`${iconProps.className} text-yellow-500`}
-        />
-      );
-    case "ts":
-    case "tsx":
-      return (
-        <FileCode
-          {...iconProps}
-          className={`${iconProps.className} text-blue-500`}
-        />
-      );
-    case "css":
-    case "scss":
-    case "sass":
-      return (
-        <FileCode
-          {...iconProps}
-          className={`${iconProps.className} text-purple-500`}
-        />
-      );
-    case "html":
-      return (
-        <FileCode
-          {...iconProps}
-          className={`${iconProps.className} text-orange-500`}
-        />
-      );
-    case "md":
-      return (
-        <FileText
-          {...iconProps}
-          className={`${iconProps.className} text-gray-500`}
-        />
-      );
-    case "png":
-    case "jpg":
-    case "jpeg":
-    case "gif":
-    case "svg":
-      return (
-        <FileImage
-          {...iconProps}
-          className={`${iconProps.className} text-green-500`}
-        />
-      );
-    default:
-      return (
-        <File
-          {...iconProps}
-          className={`${iconProps.className} text-gray-500`}
-        />
-      );
-  }
+  return <FileIcon filename={fileName} fileExtension={extension} className="mr-2 shrink-0" />;
 }

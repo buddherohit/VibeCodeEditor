@@ -15,7 +15,7 @@ const AddNewButton = () => {
 
   const handleSubmit = async (data: {
     title: string;
-    template: "REACT" | "NEXTJS" | "EXPRESS" | "VUE" | "HONO" | "ANGULAR";
+    template: "REACT" | "NEXTJS" | "EXPRESS" | "VUE" | "HONO" | "ANGULAR" | "BLANK";
     description?: string;
   }) => {
     try {
@@ -51,7 +51,7 @@ const AddNewButton = () => {
               </span>
             </div>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 max-w-[240px] leading-relaxed">
-              Launch React, Next.js, Express, Vue, Hono, or Angular in seconds.
+              Launch Custom Canvas, React, Next.js, Express, Vue, or Angular.
             </p>
             <span className="mt-3 inline-flex items-center text-xs font-semibold text-purple-600 dark:text-purple-400 group-hover:translate-x-1 transition-transform">
               Choose Template <ArrowRight className="w-3.5 h-3.5 ml-1" />

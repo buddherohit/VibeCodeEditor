@@ -98,7 +98,7 @@ export default function ProjectTable({
   const [selectedFilter, setSelectedFilter] = useState<string>("ALL");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
-  const filterOptions = ["ALL", "REACT", "NEXTJS", "EXPRESS", "VUE", "HONO", "ANGULAR", "STARRED"];
+  const filterOptions = ["ALL", "BLANK", "REACT", "NEXTJS", "EXPRESS", "VUE", "HONO", "ANGULAR", "STARRED"];
 
   const filteredProjects = useMemo(() => {
     return projects.filter((project) => {
@@ -189,6 +189,8 @@ export default function ProjectTable({
 
   const getTemplateIcon = (template: string) => {
     switch (template.toUpperCase()) {
+      case "BLANK":
+        return "/custom-code.svg";
       case "REACT":
         return "/react.svg";
       case "NEXTJS":

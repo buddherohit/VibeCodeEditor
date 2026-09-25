@@ -33,7 +33,7 @@ type TemplateSelectionModalProps = {
   onClose: () => void;
   onSubmit: (data: {
     title: string;
-    template: "REACT" | "NEXTJS" | "EXPRESS" | "VUE" | "HONO" | "ANGULAR";
+    template: "REACT" | "NEXTJS" | "EXPRESS" | "VUE" | "HONO" | "ANGULAR" | "BLANK";
     description?: string;
   }) => void;
 };
@@ -51,6 +51,23 @@ interface TemplateOption {
 }
 
 const templates: TemplateOption[] = [
+  {
+    id: "blank",
+    name: "Custom / Blank Canvas",
+    description:
+      "A clean sandbox with HTML, CSS, JavaScript or blank files. Write any code or create your own custom files and structure.",
+    icon: "/custom-code.svg",
+    color: "#8B5CF6",
+    popularity: 5,
+    tags: ["HTML", "CSS", "JS", "Custom", "Multi-Language"],
+    features: [
+      "Custom File Structure",
+      "Multi-Language Support",
+      "Online Execution",
+      "Live Reload Preview",
+    ],
+    category: "frontend",
+  },
   {
     id: "react",
     name: "React",
@@ -176,8 +193,9 @@ const TemplateSelectionModal = ({
     if (selectedTemplate) {
       const templateMap: Record<
         string,
-        "REACT" | "NEXTJS" | "EXPRESS" | "VUE" | "HONO" | "ANGULAR"
+        "REACT" | "NEXTJS" | "EXPRESS" | "VUE" | "HONO" | "ANGULAR" | "BLANK"
       > = {
+        blank: "BLANK",
         react: "REACT",
         nextjs: "NEXTJS",
         express: "EXPRESS",
@@ -189,7 +207,7 @@ const TemplateSelectionModal = ({
       const template = templates.find((t) => t.id === selectedTemplate);
       onSubmit({
         title: projectName || `New ${template?.name} Project`,
-        template: templateMap[selectedTemplate] || "REACT",
+        template: templateMap[selectedTemplate] || "BLANK",
         description: template?.description,
       });
 
