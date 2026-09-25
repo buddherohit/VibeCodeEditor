@@ -37,16 +37,32 @@ export const usePlayground = (id: string): UsePlaygroundReturn => {
       setPlaygroundData(data);
 
       const rawContent = data?.templateFiles?.[0]?.content;
-      if (typeof rawContent === "string") {
-        const parsedContent = JSON.parse(rawContent);
-        setTemplateData(parsedContent);
-        toast.success("Playground loaded successfully");
-        return;
+      if (rawContent) {
+        let parsedContent: any = rawContent;
+        if (typeof rawContent === "string") {
+          try {
+            parsedContent = JSON.parse(rawContent);
+          } catch (e) {
+            console.error("Error parsing saved template JSON:", e);
+          }
+        }
+        if (parsedContent && (parsedContent.items || parsedContent.folderName)) {
+          setTemplateData(parsedContent as TemplateFolder);
+          return;
+        }
       }
 
       // Load template from API if not in saved content
       const res = await fetch(`/api/template/${id}`);
-      if (!res.ok) throw new Error(`Failed to load template: ${res.status}`);
+      if (!res.ok) {
+        // Fallback to minimal root folder instead of crashing
+        console.warn(`Template API returned ${res.status}, using blank root`);
+        setTemplateData({
+          folderName: "Root",
+          items: [],
+        });
+        return;
+      }
 
       const templateRes = await res.json();
       if (templateRes.templateJson && Array.isArray(templateRes.templateJson)) {
@@ -60,8 +76,6 @@ export const usePlayground = (id: string): UsePlaygroundReturn => {
           items: [],
         });
       }
-
-      toast.success("Template loaded successfully");
     } catch (error) {
       console.error("Error loading playground:", error);
       setError("Failed to load playground data");

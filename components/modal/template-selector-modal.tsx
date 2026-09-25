@@ -23,11 +23,12 @@ import {
   Clock,
   Check,
   Plus,
+  Coffee,
+  FileCode,
 } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
 
-// TemplateSelectionModal.tsx
 type TemplateSelectionModalProps = {
   isOpen: boolean;
   onClose: () => void;
@@ -35,6 +36,7 @@ type TemplateSelectionModalProps = {
     title: string;
     template: "REACT" | "NEXTJS" | "EXPRESS" | "VUE" | "HONO" | "ANGULAR" | "BLANK";
     description?: string;
+    initialLanguage?: string;
   }) => void;
 };
 
@@ -47,26 +49,26 @@ interface TemplateOption {
   popularity: number;
   tags: string[];
   features: string[];
-  category: "frontend" | "backend" | "fullstack";
+  category: "languages" | "frontend" | "backend" | "fullstack";
 }
 
 const templates: TemplateOption[] = [
   {
     id: "blank",
-    name: "Custom / Blank Canvas",
+    name: "Custom / Multi-Language Script",
     description:
-      "A clean sandbox with HTML, CSS, JavaScript or blank files. Write any code or create your own custom files and structure.",
+      "A fast, clean canvas for Java, Python, C++, JavaScript, or Blank. Ideal for DSA, problem solving, algorithms, and scripts.",
     icon: "/custom-code.svg",
     color: "#8B5CF6",
     popularity: 5,
-    tags: ["HTML", "CSS", "JS", "Custom", "Multi-Language"],
+    tags: ["Java", "Python", "C++", "DSA", "Multi-Language"],
     features: [
-      "Custom File Structure",
-      "Multi-Language Support",
-      "Online Execution",
-      "Live Reload Preview",
+      "Zero Overhead - Instant Start",
+      "Java, Python, C++, JS, Rust & Go Support",
+      "Interactive Console & Stdin",
+      "▶ Online One-Click Code Runner",
     ],
-    category: "frontend",
+    category: "languages",
   },
   {
     id: "react",
@@ -152,6 +154,15 @@ const templates: TemplateOption[] = [
   },
 ];
 
+const LANGUAGE_STARTERS = [
+  { id: "java", name: "Java", ext: "Main.java", icon: "☕", desc: "Two Sum & DSA Starter" },
+  { id: "python", name: "Python 3", ext: "main.py", icon: "🐍", desc: "Clean Python Script" },
+  { id: "cpp", name: "C++ (GCC)", ext: "main.cpp", icon: "⚡", desc: "STL & Algorithms Template" },
+  { id: "javascript", name: "JavaScript", ext: "index.js", icon: "🟨", desc: "Node.js Script" },
+  { id: "html", name: "HTML / CSS / JS", ext: "index.html", icon: "🌐", desc: "Live Web Canvas" },
+  { id: "blank", name: "Blank Canvas", ext: "main.py", icon: "📄", desc: "Minimal Clean Canvas" },
+];
+
 const TemplateSelectionModal = ({
   isOpen,
   onClose,
@@ -159,9 +170,10 @@ const TemplateSelectionModal = ({
 }: TemplateSelectionModalProps) => {
   const [step, setStep] = useState<"select" | "configure">("select");
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [selectedLanguage, setSelectedLanguage] = useState<string>("java");
   const [searchQuery, setSearchQuery] = useState("");
   const [category, setCategory] = useState<
-    "all" | "frontend" | "backend" | "fullstack"
+    "all" | "languages" | "frontend" | "backend" | "fullstack"
   >("all");
   const [projectName, setProjectName] = useState("");
 
@@ -205,22 +217,27 @@ const TemplateSelectionModal = ({
       };
 
       const template = templates.find((t) => t.id === selectedTemplate);
+      const isBlank = selectedTemplate === "blank";
+
+      let defaultTitle = `New ${template?.name} Project`;
+      if (isBlank) {
+        const langObj = LANGUAGE_STARTERS.find((l) => l.id === selectedLanguage);
+        defaultTitle = `${langObj?.name || "Code"} Playground`;
+      }
+
       onSubmit({
-        title: projectName || `New ${template?.name} Project`,
+        title: projectName.trim() || defaultTitle,
         template: templateMap[selectedTemplate] || "BLANK",
         description: template?.description,
+        initialLanguage: isBlank ? selectedLanguage : undefined,
       });
 
-      console.log(
-        `Creating ${projectName || "new project"} with template: ${
-          template?.name
-        }`
-      );
       onClose();
       // Reset state for next time
       setStep("select");
       setSelectedTemplate(null);
       setProjectName("");
+      setSelectedLanguage("java");
     }
   };
 
@@ -248,10 +265,10 @@ const TemplateSelectionModal = ({
       onOpenChange={(open) => {
         if (!open) {
           onClose();
-          // Reset state when closing
           setStep("select");
           setSelectedTemplate(null);
           setProjectName("");
+          setSelectedLanguage("java");
         }
       }}
     >
@@ -259,12 +276,12 @@ const TemplateSelectionModal = ({
         {step === "select" ? (
           <>
             <DialogHeader>
-              <DialogTitle className="text-2xl font-bold text-[#e93f3f] flex items-center gap-2">
-                <Plus size={24} className="text-[#e93f3f]" />
+              <DialogTitle className="text-2xl font-bold text-purple-600 dark:text-purple-400 flex items-center gap-2">
+                <Plus size={24} />
                 Select a Template
               </DialogTitle>
               <DialogDescription>
-                Choose a template to create your new playground
+                Choose a template or language sandbox to create your new playground
               </DialogDescription>
             </DialogHeader>
 
@@ -276,7 +293,7 @@ const TemplateSelectionModal = ({
                     size={18}
                   />
                   <Input
-                    placeholder="Search templates..."
+                    placeholder="Search templates (Java, Python, React, etc.)..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-10"
@@ -288,8 +305,9 @@ const TemplateSelectionModal = ({
                   className="w-full sm:w-auto"
                   onValueChange={(value) => setCategory(value as any)}
                 >
-                  <TabsList className="grid grid-cols-4 w-full sm:w-[400px]">
+                  <TabsList className="grid grid-cols-5 w-full sm:w-[460px]">
                     <TabsTrigger value="all">All</TabsTrigger>
+                    <TabsTrigger value="languages">Languages</TabsTrigger>
                     <TabsTrigger value="frontend">Frontend</TabsTrigger>
                     <TabsTrigger value="backend">Backend</TabsTrigger>
                     <TabsTrigger value="fullstack">Fullstack</TabsTrigger>
@@ -310,8 +328,8 @@ const TemplateSelectionModal = ({
                           transition-all duration-300 hover:scale-[1.02]
                           ${
                             selectedTemplate === template.id
-                              ? "border-[#E93F3F]  shadow-[0_0_0_1px_#E93F3F,0_8px_20px_rgba(233,63,63,0.15)]"
-                              : "hover:border-[#E93F3F] shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.1)]"
+                              ? "border-purple-600 shadow-[0_0_0_1px_#8b5cf6,0_8px_20px_rgba(139,92,246,0.15)]"
+                              : "hover:border-purple-500 shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.1)]"
                           }`}
                         onClick={() => handleSelectTemplate(template.id)}
                       >
@@ -320,7 +338,7 @@ const TemplateSelectionModal = ({
                         </div>
 
                         {selectedTemplate === template.id && (
-                          <div className="absolute top-2 left-2 bg-[#E93F3F] text-white rounded-full p-1">
+                          <div className="absolute top-2 left-2 bg-purple-600 text-white rounded-full p-1">
                             <Check size={14} />
                           </div>
                         )}
@@ -345,6 +363,9 @@ const TemplateSelectionModal = ({
                                 {template.name}
                               </h3>
                               <div className="flex gap-1">
+                                {template.category === "languages" && (
+                                  <Code size={14} className="text-purple-500" />
+                                )}
                                 {template.category === "frontend" && (
                                   <Code size={14} className="text-blue-500" />
                                 )}
@@ -406,8 +427,11 @@ const TemplateSelectionModal = ({
               <div className="flex items-center text-sm text-muted-foreground">
                 <Clock size={14} className="mr-1" />
                 <span>
-                  Estimated setup time:{" "}
-                  {selectedTemplate ? "2-5 minutes" : "Select a template"}
+                  {selectedTemplate === "blank"
+                    ? "Instant Launch: 0 seconds"
+                    : selectedTemplate
+                    ? "Estimated setup: 1-2 minutes"
+                    : "Select a template"}
                 </span>
               </div>
               <div className="flex gap-3">
@@ -415,7 +439,7 @@ const TemplateSelectionModal = ({
                   Cancel
                 </Button>
                 <Button
-                  className="bg-[#E93F3F] hover:bg-[#d03636]"
+                  className="bg-purple-600 hover:bg-purple-700 text-white"
                   disabled={!selectedTemplate}
                   onClick={handleContinue}
                 >
@@ -427,12 +451,11 @@ const TemplateSelectionModal = ({
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle className="text-2xl font-bold text-[#e93f3f]">
+              <DialogTitle className="text-2xl font-bold text-purple-600 dark:text-purple-400">
                 Configure Your Project
               </DialogTitle>
               <DialogDescription>
-                {templates.find((t) => t.id === selectedTemplate)?.name} project
-                configuration
+                {templates.find((t) => t.id === selectedTemplate)?.name} configuration
               </DialogDescription>
             </DialogHeader>
 
@@ -441,21 +464,48 @@ const TemplateSelectionModal = ({
                 <Label htmlFor="project-name">Project Name</Label>
                 <Input
                   id="project-name"
-                  placeholder="my-awesome-project"
+                  placeholder="e.g. two-sum-solution, my-app"
                   value={projectName}
                   onChange={(e) => setProjectName(e.target.value)}
                 />
               </div>
 
-              <div className="p-4 shadow-[0_0_0_1px_#E93F3F,0_8px_20px_rgba(233,63,63,0.15)] rounded-lg border">
-                <h3 className="font-medium mb-2">Selected Template Features</h3>
+              {selectedTemplate === "blank" && (
+                <div className="flex flex-col gap-3">
+                  <Label>Starter Language / File Type</Label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                    {LANGUAGE_STARTERS.map((lang) => (
+                      <div
+                        key={lang.id}
+                        onClick={() => setSelectedLanguage(lang.id)}
+                        className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                          selectedLanguage === lang.id
+                            ? "border-purple-600 bg-purple-50/50 dark:bg-purple-950/30 shadow-sm"
+                            : "hover:border-purple-300 dark:hover:border-purple-800"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{lang.icon}</span>
+                          <div>
+                            <p className="text-xs font-semibold">{lang.name}</p>
+                            <p className="text-[10px] text-muted-foreground">{lang.ext}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="p-4 rounded-lg border bg-muted/20">
+                <h3 className="font-medium text-xs mb-2">Included Features</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {templates
                     .find((t) => t.id === selectedTemplate)
                     ?.features.map((feature) => (
                       <div key={feature} className="flex items-center gap-2">
-                        <Zap size={14} className="text-[#E93F3F]" />
-                        <span className="text-sm">{feature}</span>
+                        <Zap size={14} className="text-purple-600" />
+                        <span className="text-xs text-muted-foreground">{feature}</span>
                       </div>
                     ))}
                 </div>
@@ -467,7 +517,7 @@ const TemplateSelectionModal = ({
                 Back
               </Button>
               <Button
-                className="bg-[#E93F3F] hover:bg-[#d03636]"
+                className="bg-purple-600 hover:bg-purple-700 text-white"
                 onClick={handleCreateProject}
               >
                 Create Project

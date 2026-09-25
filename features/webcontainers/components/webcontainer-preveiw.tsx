@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
-import type { TemplateFolder } from "@/features/playground/libs/path-to-json";
+import type { TemplateFolder, TemplateFile } from "@/features/playground/libs/path-to-json";
 import { transformToWebContainerFormat } from "../hooks/transformer";
-import { CheckCircle, Loader2, XCircle, RotateCw, ExternalLink, Globe, Play } from "lucide-react";
+import { CheckCircle, Loader2, XCircle, RotateCw, ExternalLink, Globe, Play, Terminal as TerminalIcon, Sparkles } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,32 @@ interface WebContainerPreviewProps {
   writeFileSync: (path: string, content: string) => Promise<void>;
   forceResetup?: boolean;
 }
+
+// Helpers to inspect files in templateData
+const checkHasPackageJson = (folder?: TemplateFolder): boolean => {
+  if (!folder || !folder.items) return false;
+  for (const item of folder.items) {
+    if ("folderName" in item) {
+      if (checkHasPackageJson(item as any)) return true;
+    } else if (item.filename === "package" && item.fileExtension === "json") {
+      return true;
+    }
+  }
+  return false;
+};
+
+const findFileInTemplate = (folder: TemplateFolder, filename: string, ext: string): TemplateFile | null => {
+  if (!folder || !folder.items) return null;
+  for (const item of folder.items) {
+    if ("folderName" in item) {
+      const res = findFileInTemplate(item as any, filename, ext);
+      if (res) return res;
+    } else if (item.filename.toLowerCase() === filename.toLowerCase() && item.fileExtension.toLowerCase() === ext.toLowerCase()) {
+      return item;
+    }
+  }
+  return null;
+};
 
 const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
   templateData,
@@ -48,6 +74,11 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
   // Ref to access terminal methods
   const terminalRef = useRef<any>(null);
 
+  const hasPkgJson = checkHasPackageJson(templateData);
+  const htmlFile = findFileInTemplate(templateData, "index", "html");
+  const cssFile = findFileInTemplate(templateData, "style", "css");
+  const jsFile = findFileInTemplate(templateData, "script", "js") || findFileInTemplate(templateData, "index", "js");
+
   // Reset setup state when forceResetup changes
   useEffect(() => {
     if (forceResetup) {
@@ -67,14 +98,13 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
 
   useEffect(() => {
     async function setupContainer() {
-      // Don't run setup if it's already complete or in progress
       if (!instance || isSetupComplete || isSetupInProgress) return;
 
       try {
         setIsSetupInProgress(true);
         setSetupError(null);
 
-        // Step 1: Transform data
+        // Step 1: Transform & Mount files
         setLoadingState((prev) => ({ ...prev, transforming: true }));
         setCurrentStep(1);
 
@@ -92,7 +122,6 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
         }));
         setCurrentStep(2);
 
-        // Step 2: Mount files
         if (terminalRef.current?.writeToTerminal) {
           terminalRef.current.writeToTerminal("📁 Mounting files to WebContainer...\r\n");
         }
@@ -103,6 +132,26 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
           terminalRef.current.writeToTerminal("✅ Files mounted successfully\r\n");
         }
 
+        // If this is not a Node.js project (no package.json), stop here!
+        if (!hasPkgJson) {
+          if (terminalRef.current?.writeToTerminal) {
+            terminalRef.current.writeToTerminal(
+              "ℹ️ Standalone project loaded (No package.json). Terminal is ready for commands.\r\n"
+            );
+          }
+          setLoadingState({
+            transforming: false,
+            mounting: false,
+            installing: false,
+            starting: false,
+            ready: true,
+          });
+          setIsSetupComplete(true);
+          setIsSetupInProgress(false);
+          return;
+        }
+
+        // Step 3: Install dependencies for Node.js projects
         setLoadingState((prev) => ({
           ...prev,
           mounting: false,
@@ -110,7 +159,6 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
         }));
         setCurrentStep(3);
 
-        // Step 3: Install dependencies
         if (terminalRef.current?.writeToTerminal) {
           terminalRef.current.writeToTerminal("📦 Running npm install...\r\n");
         }
@@ -210,7 +258,7 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
     }
 
     setupContainer();
-  }, [instance, templateData, isSetupComplete, isSetupInProgress]);
+  }, [instance, templateData, isSetupComplete, isSetupInProgress, hasPkgJson]);
 
   const handleRefreshPreview = () => {
     setIframeKey((prev) => prev + 1);
@@ -227,9 +275,9 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
       <div className="h-full flex items-center justify-center">
         <div className="text-center space-y-4 max-w-md p-6 rounded-lg bg-gray-50 dark:bg-zinc-900 border">
           <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto" />
-          <h3 className="text-lg font-medium">Initializing WebContainer</h3>
+          <h3 className="text-lg font-medium">Initializing Environment</h3>
           <p className="text-sm text-muted-foreground">
-            Booting the in-browser runtime environment...
+            Booting the in-browser runtime...
           </p>
         </div>
       </div>
@@ -290,6 +338,15 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
     );
   };
 
+  // Generate static HTML bundle if no package.json but HTML exists
+  const getStaticHtmlDoc = () => {
+    if (!htmlFile) return "";
+    const html = htmlFile.content || "";
+    const css = cssFile?.content ? `<style>${cssFile.content}</style>` : "";
+    const js = jsFile?.content ? `<script>${jsFile.content}</script>` : "";
+    return `<!DOCTYPE html><html><head><meta charset="utf-8">${css}</head><body>${html}${js}</body></html>`;
+  };
+
   return (
     <div className="h-full w-full flex flex-col bg-background">
       {/* Browser address bar / controls */}
@@ -300,7 +357,7 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
             variant="ghost"
             className="h-7 w-7"
             onClick={handleRefreshPreview}
-            disabled={!previewUrl}
+            disabled={!previewUrl && !htmlFile}
             title="Reload Preview"
           >
             <RotateCw className="h-3.5 w-3.5" />
@@ -319,23 +376,78 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
 
         <div className="flex-1 flex items-center gap-2 bg-background border rounded-md px-2.5 py-1 text-xs text-muted-foreground max-w-sm truncate">
           <Globe className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          <span className="truncate">{previewUrl || "http://localhost:3000 (starting...)"}</span>
+          <span className="truncate">
+            {previewUrl
+              ? previewUrl
+              : htmlFile
+              ? "Live HTML Canvas"
+              : hasPkgJson
+              ? "http://localhost:3000 (starting...)"
+              : "Standalone Runner Mode"}
+          </span>
         </div>
 
         <div>
-          {previewUrl ? (
+          {previewUrl || htmlFile ? (
             <Badge variant="outline" className="text-xs text-green-600 border-green-300 dark:border-green-800 bg-green-50/50 dark:bg-green-950/30">
               ● Live
             </Badge>
-          ) : (
+          ) : hasPkgJson ? (
             <Badge variant="outline" className="text-xs text-amber-600 border-amber-300 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/30">
               Starting
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-xs text-blue-600 border-blue-300 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/30">
+              Ready
             </Badge>
           )}
         </div>
       </div>
 
-      {!previewUrl ? (
+      {/* Case 1: Node.js Web App with Live URL */}
+      {previewUrl ? (
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="flex-1 bg-white dark:bg-zinc-950 relative min-h-0">
+            <iframe
+              key={iframeKey}
+              src={previewUrl}
+              className="w-full h-full border-none"
+              title="WebContainer Live Preview"
+              allow="cross-origin-isolated"
+            />
+          </div>
+          <div className="h-48 border-t min-h-0">
+            <TerminalComponent
+              ref={terminalRef}
+              webContainerInstance={instance}
+              theme="dark"
+              className="h-full"
+            />
+          </div>
+        </div>
+      ) : htmlFile ? (
+        /* Case 2: Static HTML Project */
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="flex-1 bg-white dark:bg-zinc-950 relative min-h-0">
+            <iframe
+              key={iframeKey}
+              srcDoc={getStaticHtmlDoc()}
+              sandbox="allow-scripts allow-modals"
+              className="w-full h-full border-none"
+              title="Static HTML Preview"
+            />
+          </div>
+          <div className="h-44 border-t min-h-0">
+            <TerminalComponent
+              ref={terminalRef}
+              webContainerInstance={instance}
+              theme="dark"
+              className="h-full"
+            />
+          </div>
+        </div>
+      ) : hasPkgJson ? (
+        /* Case 3: Node.js project building */
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="w-full max-w-md p-6 m-4 rounded-lg bg-card border shadow-sm mx-auto shrink-0">
             <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
@@ -367,7 +479,6 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
             </div>
           </div>
 
-          {/* Terminal */}
           <div className="flex-1 p-3 min-h-0">
             <TerminalComponent
               ref={terminalRef}
@@ -378,25 +489,31 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          {/* Live Preview Iframe */}
-          <div className="flex-1 bg-white dark:bg-zinc-950 relative min-h-0">
-            <iframe
-              key={iframeKey}
-              src={previewUrl}
-              className="w-full h-full border-none"
-              title="WebContainer Live Preview"
-              allow="cross-origin-isolated"
-            />
+        /* Case 4: Standalone Code Project (Java, Python, C++, etc.) */
+        <div className="flex-1 flex flex-col min-h-0">
+          <div className="p-6 m-4 rounded-xl border bg-card/60 backdrop-blur shadow-sm space-y-3 shrink-0">
+            <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-semibold text-sm">
+              <Sparkles className="h-4 w-4" />
+              <span>Multi-Language Online Runner Active</span>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              This code runs directly in the online execution environment. Click{" "}
+              <strong className="text-foreground">▶ Run Code</strong> or press{" "}
+              <kbd className="px-1.5 py-0.5 rounded bg-muted border font-mono text-[10px]">Ctrl+Enter</kbd>{" "}
+              to run and inspect stdout, stderr, and execution time in the Console Drawer.
+            </p>
           </div>
 
-          {/* Terminal at bottom when preview is running */}
-          <div className="h-56 border-t min-h-0">
+          <div className="flex-1 p-3 min-h-0 flex flex-col">
+            <div className="text-[11px] font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5">
+              <TerminalIcon className="h-3.5 w-3.5" />
+              <span>Interactive Shell Terminal</span>
+            </div>
             <TerminalComponent
               ref={terminalRef}
               webContainerInstance={instance}
               theme="dark"
-              className="h-full"
+              className="flex-1 rounded-md border overflow-hidden"
             />
           </div>
         </div>
@@ -405,4 +522,4 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
   );
 };
 
-export default WebContainerPreview;
+export default WebContainerPreview;

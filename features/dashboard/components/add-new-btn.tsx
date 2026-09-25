@@ -17,12 +17,17 @@ const AddNewButton = () => {
     title: string;
     template: "REACT" | "NEXTJS" | "EXPRESS" | "VUE" | "HONO" | "ANGULAR" | "BLANK";
     description?: string;
+    initialLanguage?: string;
   }) => {
     try {
       const res = await createPlayground(data);
-      toast.success("Playground created successfully!");
-      setIsModalOpen(false);
-      router.push(`/playground/${res?.id}`);
+      if (res?.id) {
+        toast.success("Playground created successfully!");
+        setIsModalOpen(false);
+        router.push(`/playground/${res.id}`);
+      } else {
+        toast.error("Failed to create playground");
+      }
     } catch (err: any) {
       toast.error("Failed to create playground");
     }

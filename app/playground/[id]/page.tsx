@@ -140,19 +140,41 @@ const MainPlaygroundPage: React.FC = () => {
 
   const lastSyncedContent = useRef<Map<string, string>>(new Map());
 
+  // Helper to find first file in folder
+  const findFirstFile = (folder: TemplateFolder): TemplateFile | null => {
+    for (const item of folder.items) {
+      if ("folderName" in item) {
+        const found = findFirstFile(item);
+        if (found) return found;
+      } else {
+        return item;
+      }
+    }
+    return null;
+  };
+
   // Set template data when playground loads
   React.useEffect(() => {
     setPlaygroundId(id);
   }, [id, setPlaygroundId]);
 
-  // Initialize zustand templateData from usePlayground only on first load
+  // Initialize zustand templateData and auto-open first file on first load
   React.useEffect(() => {
     if (templateData && !openFiles.length) {
-
-      
       setTemplateData(templateData);
+      const first = findFirstFile(templateData);
+      if (first) {
+        openFile(first);
+      }
     }
-  }, [templateData, setTemplateData, openFiles.length]);
+  }, [templateData, setTemplateData, openFiles.length, openFile]);
+
+  // Adjust preview visibility for standalone projects
+  React.useEffect(() => {
+    if (playgroundData?.template === "BLANK") {
+      setIsPreviewVisible(false);
+    }
+  }, [playgroundData?.template]);
 
   // Create wrapper functions that pass saveTemplateData
   const wrappedHandleAddFile = useCallback(
