@@ -132,11 +132,24 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
           terminalRef.current.writeToTerminal("✅ Files mounted successfully\r\n");
         }
 
+        // Verify if package.json actually exists in the mounted filesystem
+        let hasMountedPkgJson = false;
+        let pkgJsonObj: any = null;
+        try {
+          const pkgJsonStr = await instance.fs.readFile("package.json", "utf8");
+          if (pkgJsonStr && pkgJsonStr.trim().length > 0) {
+            pkgJsonObj = JSON.parse(pkgJsonStr);
+            hasMountedPkgJson = true;
+          }
+        } catch {
+          hasMountedPkgJson = false;
+        }
+
         // If this is not a Node.js project (no package.json), stop here!
-        if (!hasPkgJson) {
+        if (!hasMountedPkgJson && !hasPkgJson) {
           if (terminalRef.current?.writeToTerminal) {
             terminalRef.current.writeToTerminal(
-              "ℹ️ Standalone project loaded (No package.json). Terminal is ready for commands.\r\n"
+              "ℹ️ Standalone project loaded. Terminal is ready for commands.\r\n"
             );
           }
           setLoadingState({
@@ -163,26 +176,37 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
           terminalRef.current.writeToTerminal("📦 Running npm install...\r\n");
         }
 
-        const installProcess = await instance.spawn("npm", ["install"]);
+        try {
+          const installProcess = await instance.spawn("npm", ["install"]);
 
-        installProcess.output.pipeTo(
-          new WritableStream({
-            write(data) {
-              if (terminalRef.current?.writeToTerminal) {
-                terminalRef.current.writeToTerminal(data);
-              }
-            },
-          })
-        );
+          installProcess.output.pipeTo(
+            new WritableStream({
+              write(data) {
+                if (terminalRef.current?.writeToTerminal) {
+                  terminalRef.current.writeToTerminal(data);
+                }
+              },
+            })
+          );
 
-        const installExitCode = await installProcess.exit;
+          const installExitCode = await installProcess.exit;
 
-        if (installExitCode !== 0) {
-          throw new Error(`npm install exited with code ${installExitCode}`);
-        }
-
-        if (terminalRef.current?.writeToTerminal) {
-          terminalRef.current.writeToTerminal("✅ Dependencies installed successfully\r\n");
+          if (installExitCode === 0) {
+            if (terminalRef.current?.writeToTerminal) {
+              terminalRef.current.writeToTerminal("✅ Dependencies installed successfully\r\n");
+            }
+          } else {
+            if (terminalRef.current?.writeToTerminal) {
+              terminalRef.current.writeToTerminal(
+                `\r\n⚠️ npm install exited with code ${installExitCode}. Proceeding to start server...\r\n`
+              );
+            }
+          }
+        } catch (installErr) {
+          console.warn("npm install execution notice:", installErr);
+          if (terminalRef.current?.writeToTerminal) {
+            terminalRef.current.writeToTerminal("⚠️ Notice: continuing startup...\r\n");
+          }
         }
 
         setLoadingState((prev) => ({
@@ -194,16 +218,10 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
 
         // Step 4: Determine start command and start the server
         let startCmd = ["run", "dev"];
-        try {
-          const pkgJsonStr = await instance.fs.readFile("package.json", "utf8");
-          const pkgJson = JSON.parse(pkgJsonStr);
-          if (pkgJson.scripts?.dev) {
-            startCmd = ["run", "dev"];
-          } else if (pkgJson.scripts?.start) {
-            startCmd = ["run", "start"];
-          }
-        } catch (e) {
-          console.warn("Could not read package.json scripts, defaulting to npm run dev");
+        if (pkgJsonObj?.scripts?.dev) {
+          startCmd = ["run", "dev"];
+        } else if (pkgJsonObj?.scripts?.start) {
+          startCmd = ["run", "start"];
         }
 
         if (terminalRef.current?.writeToTerminal) {
@@ -226,17 +244,21 @@ const WebContainerPreview: React.FC<WebContainerPreviewProps> = ({
           setIsSetupInProgress(false);
         });
 
-        const startProcess = await instance.spawn("npm", startCmd);
+        try {
+          const startProcess = await instance.spawn("npm", startCmd);
 
-        startProcess.output.pipeTo(
-          new WritableStream({
-            write(data) {
-              if (terminalRef.current?.writeToTerminal) {
-                terminalRef.current.writeToTerminal(data);
-              }
-            },
-          })
-        );
+          startProcess.output.pipeTo(
+            new WritableStream({
+              write(data) {
+                if (terminalRef.current?.writeToTerminal) {
+                  terminalRef.current.writeToTerminal(data);
+                }
+              },
+            })
+          );
+        } catch (startErr) {
+          console.warn("Error starting dev server:", startErr);
+        }
       } catch (err) {
         console.error("Error setting up container:", err);
         const errorMessage = err instanceof Error ? err.message : String(err);
