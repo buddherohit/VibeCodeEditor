@@ -57,10 +57,14 @@ import { useFileExplorer } from "@/features/playground/hooks/useFileExplorer";
 import { usePlayground } from "@/features/playground/hooks/usePlayground";
 import { useAISuggestions } from "@/features/playground/hooks/useAISuggestion";
 import { useWebContainer } from "@/features/webcontainers/hooks/useWebContainer";
-import { SaveUpdatedCode } from "@/features/playground/actions";
 import { TemplateFolder } from "@/features/playground/types";
 import { findFilePath } from "@/features/playground/libs";
 import { ConfirmationDialog } from "@/features/playground/components/dialogs/conformation-dialog";
+import { RunCodeButton } from "@/features/playground/components/run-code-button";
+import { CodeRunnerPanel } from "@/features/playground/components/code-runner-panel";
+import { getLanguageConfig, isWebFile } from "@/features/playground/libs/runner-config";
+import type { ExecutionResponse } from "@/app/api/execute/route";
+import { Terminal as TerminalIcon } from "lucide-react";
 
 const MainPlaygroundPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -390,17 +394,122 @@ const MainPlaygroundPage: React.FC = () => {
     }
   };
 
-  // Add event to save file by click ctrl + s
+  // Multi-language online code runner state
+  const [isRunningCode, setIsRunningCode] = useState(false);
+  const [executionResult, setExecutionResult] = useState<ExecutionResponse | null>(null);
+  const [stdinInput, setStdinInput] = useState("");
+  const [isRunnerPanelOpen, setIsRunnerPanelOpen] = useState(false);
+  const [activeRunnerTab, setActiveRunnerTab] = useState<string>("output");
+
+  const isActiveFileWeb = activeFile ? isWebFile(activeFile.fileExtension) : false;
+  const activeLanguageConfig = activeFile ? getLanguageConfig(activeFile.fileExtension) : null;
+
+  const webSandboxCode = React.useMemo(() => {
+    if (!activeFile) return undefined;
+    let html = "";
+    let css = "";
+    let js = "";
+
+    if (activeFile.fileExtension.toLowerCase() === "html" || activeFile.fileExtension.toLowerCase() === "htm") {
+      html = activeFile.content || "";
+    }
+
+    openFiles.forEach((f) => {
+      if (f.fileExtension.toLowerCase() === "css" && !css) {
+        css = f.content || "";
+      }
+      if ((f.fileExtension.toLowerCase() === "js" || f.fileExtension.toLowerCase() === "ts") && !js) {
+        js = f.content || "";
+      }
+    });
+
+    return { html, css, js };
+  }, [activeFile, openFiles]);
+
+  const handleRunCode = useCallback(async () => {
+    if (!activeFile) {
+      toast.error("Please select a file to run");
+      return;
+    }
+
+    if (isWebFile(activeFile.fileExtension)) {
+      setIsRunnerPanelOpen(true);
+      setActiveRunnerTab("web");
+      toast.success(`Rendering ${activeFile.filename}.${activeFile.fileExtension} preview`);
+      return;
+    }
+
+    const langConfig = getLanguageConfig(activeFile.fileExtension);
+    const language = langConfig ? langConfig.pistonRuntime : activeFile.fileExtension;
+
+    setIsRunnerPanelOpen(true);
+    setIsRunningCode(true);
+    setActiveRunnerTab("output");
+
+    try {
+      const response = await fetch("/api/execute", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          language,
+          version: langConfig?.version || "*",
+          files: [
+            {
+              name: `${activeFile.filename}.${activeFile.fileExtension}`,
+              content: activeFile.content || "",
+            },
+          ],
+          stdin: stdinInput,
+        }),
+      });
+
+      const data: ExecutionResponse = await response.json();
+      setExecutionResult(data);
+
+      if (data.success) {
+        toast.success(`Execution completed (${data.executionTime}ms)`);
+      } else {
+        toast.error(`Execution finished with errors`);
+      }
+    } catch (err: any) {
+      console.error("Execution error:", err);
+      setExecutionResult({
+        success: false,
+        stdout: "",
+        stderr: `Execution error: ${err?.message || "Failed to contact execution engine"}`,
+        exitCode: 1,
+        signal: null,
+        language,
+        version: "",
+        error: err?.message,
+      });
+      toast.error("Failed to execute code");
+    } finally {
+      setIsRunningCode(false);
+    }
+  }, [activeFile, stdinInput]);
+
+  // Global Keyboard shortcuts: Ctrl+S (Save), Ctrl+Enter (Run Code), Ctrl+` (Toggle Console)
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === "s") {
         e.preventDefault();
         handleSave();
       }
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        handleRunCode();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === "`") {
+        e.preventDefault();
+        setIsRunnerPanelOpen((prev) => !prev);
+      }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleSave]);
+  }, [handleSave, handleRunCode]);
 
   // Error state
   if (error) {
@@ -508,6 +617,29 @@ const MainPlaygroundPage: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-1.5">
+                <RunCodeButton
+                  onRun={handleRunCode}
+                  isRunning={isRunningCode}
+                  disabled={!activeFile}
+                  languageName={activeLanguageConfig?.name}
+                  isWeb={isActiveFileWeb}
+                />
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant={isRunnerPanelOpen ? "secondary" : "outline"}
+                      onClick={() => setIsRunnerPanelOpen(!isRunnerPanelOpen)}
+                      className="gap-1.5 text-xs"
+                    >
+                      <TerminalIcon className="h-4 w-4 text-emerald-500" />
+                      <span className="hidden md:inline">Console</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Toggle Console / Runner Panel (Ctrl+`)</TooltipContent>
+                </Tooltip>
+
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -555,9 +687,14 @@ const MainPlaygroundPage: React.FC = () => {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem
+                      onClick={() => setIsRunnerPanelOpen(!isRunnerPanelOpen)}
+                    >
+                      {isRunnerPanelOpen ? "Hide" : "Show"} Console Panel
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
                       onClick={() => setIsPreviewVisible(!isPreviewVisible)}
                     >
-                      {isPreviewVisible ? "Hide" : "Show"} Preview
+                      {isPreviewVisible ? "Hide" : "Show"} WebContainer Preview
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setIsSettingsModalOpen(true)}>
                       Editor Preferences
@@ -644,32 +781,54 @@ const MainPlaygroundPage: React.FC = () => {
                     className="h-full"
                   >
                     <ResizablePanel defaultSize={isPreviewVisible ? 50 : 100}>
-                      <PlaygroundEditor
-                        activeFile={activeFile}
-                        content={activeFile?.content || ""}
-                        onContentChange={(value) =>
-                          activeFileId && updateFileContent(activeFileId, value)
-                        }
-                        theme={editorSettings.theme}
-                        customOptions={{
-                          fontSize: editorSettings.fontSize,
-                          wordWrap: editorSettings.wordWrap ? "on" : "off",
-                          tabSize: editorSettings.tabSize,
-                          minimap: { enabled: editorSettings.minimap },
-                        }}
-                        suggestion={aiSuggestions.suggestion}
-                        suggestionLoading={aiSuggestions.isLoading}
-                        suggestionPosition={aiSuggestions.position}
-                        onAcceptSuggestion={(editor, monaco) =>
-                          aiSuggestions.acceptSuggestion(editor, monaco)
-                        }
-                        onRejectSuggestion={(editor) =>
-                          aiSuggestions.rejectSuggestion(editor)
-                        }
-                        onTriggerSuggestion={(type, editor) =>
-                          aiSuggestions.fetchSuggestion(type, editor)
-                        }
-                      />
+                      <div className="h-full flex flex-col min-h-0">
+                        <div className="flex-1 min-h-0 relative">
+                          <PlaygroundEditor
+                            activeFile={activeFile}
+                            content={activeFile?.content || ""}
+                            onContentChange={(value) =>
+                              activeFileId && updateFileContent(activeFileId, value)
+                            }
+                            theme={editorSettings.theme}
+                            customOptions={{
+                              fontSize: editorSettings.fontSize,
+                              wordWrap: editorSettings.wordWrap ? "on" : "off",
+                              tabSize: editorSettings.tabSize,
+                              minimap: { enabled: editorSettings.minimap },
+                            }}
+                            suggestion={aiSuggestions.suggestion}
+                            suggestionLoading={aiSuggestions.isLoading}
+                            suggestionPosition={aiSuggestions.position}
+                            onAcceptSuggestion={(editor, monaco) =>
+                              aiSuggestions.acceptSuggestion(editor, monaco)
+                            }
+                            onRejectSuggestion={(editor) =>
+                              aiSuggestions.rejectSuggestion(editor)
+                            }
+                            onTriggerSuggestion={(type, editor) =>
+                              aiSuggestions.fetchSuggestion(type, editor)
+                            }
+                          />
+                        </div>
+
+                        {isRunnerPanelOpen && (
+                          <CodeRunnerPanel
+                            isOpen={isRunnerPanelOpen}
+                            onClose={() => setIsRunnerPanelOpen(false)}
+                            isRunning={isRunningCode}
+                            result={executionResult}
+                            languageConfig={activeLanguageConfig}
+                            stdin={stdinInput}
+                            onStdinChange={setStdinInput}
+                            onClearOutput={() => setExecutionResult(null)}
+                            onRunCode={handleRunCode}
+                            webCode={webSandboxCode}
+                            isWeb={isActiveFileWeb}
+                            activeTab={activeRunnerTab}
+                            onTabChange={setActiveRunnerTab}
+                          />
+                        )}
+                      </div>
                     </ResizablePanel>
 
                     {isPreviewVisible && (
