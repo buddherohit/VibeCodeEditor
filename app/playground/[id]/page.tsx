@@ -62,6 +62,7 @@ import { findFilePath } from "@/features/playground/libs";
 import { ConfirmationDialog } from "@/features/playground/components/dialogs/conformation-dialog";
 import { RunCodeButton } from "@/features/playground/components/run-code-button";
 import { CodeRunnerPanel } from "@/features/playground/components/code-runner-panel";
+import { StatusBar } from "@/features/playground/components/status-bar";
 import { getLanguageConfig, isWebFile } from "@/features/playground/libs/runner-config";
 import type { ExecutionResponse } from "@/app/api/execute/route";
 import { Terminal as TerminalIcon } from "lucide-react";
@@ -129,6 +130,13 @@ const MainPlaygroundPage: React.FC = () => {
     setOpenFiles,
   } = useFileExplorer();
 
+  const isWebFrameworkProject = Boolean(
+    playgroundData?.template &&
+      ["REACT", "NEXTJS", "EXPRESS", "VUE", "HONO", "ANGULAR"].includes(
+        playgroundData.template
+      )
+  );
+
   const {
     serverUrl,
     isLoading: containerLoading,
@@ -136,7 +144,10 @@ const MainPlaygroundPage: React.FC = () => {
     instance,
     writeFileSync,
     // @ts-ignore
-  } = useWebContainer({ templateData });
+  } = useWebContainer({
+    templateData: templateData || { folderName: "Root", items: [] },
+    enabled: isWebFrameworkProject,
+  });
 
   const lastSyncedContent = useRef<Map<string, string>>(new Map());
 
@@ -169,12 +180,12 @@ const MainPlaygroundPage: React.FC = () => {
     }
   }, [templateData, setTemplateData, openFiles.length, openFile]);
 
-  // Adjust preview visibility for standalone projects
+  // Adjust preview visibility: Hide preview for standalone/custom/Java/Python projects
   React.useEffect(() => {
-    if (playgroundData?.template === "BLANK") {
+    if (playgroundData?.template === "BLANK" || !isWebFrameworkProject) {
       setIsPreviewVisible(false);
     }
-  }, [playgroundData?.template]);
+  }, [playgroundData?.template, isWebFrameworkProject]);
 
   // Create wrapper functions that pass saveTemplateData
   const wrappedHandleAddFile = useCallback(
@@ -796,6 +807,25 @@ const MainPlaygroundPage: React.FC = () => {
                   </Tabs>
                 </div>
 
+                {/* VS Code Style Breadcrumb Bar */}
+                {activeFile && (
+                  <div className="flex items-center gap-1.5 px-4 py-1 text-xs text-muted-foreground bg-muted/10 border-b select-none font-mono">
+                    <span className="hover:text-foreground cursor-pointer">
+                      {playgroundData?.title || playgroundData?.name || "Workspace"}
+                    </span>
+                    <span className="text-zinc-500">›</span>
+                    <FileIcon
+                      filename={activeFile.filename}
+                      fileExtension={activeFile.fileExtension}
+                      size={13}
+                      className="h-3.5 w-3.5 inline mr-0.5"
+                    />
+                    <span className="text-foreground font-medium">
+                      {activeFile.filename}.{activeFile.fileExtension}
+                    </span>
+                  </div>
+                )}
+
                 {/* Editor and Preview */}
                 <div className="flex-1">
                   <ResizablePanelGroup
@@ -871,6 +901,16 @@ const MainPlaygroundPage: React.FC = () => {
                     )}
                   </ResizablePanelGroup>
                 </div>
+
+                {/* VS Code Bottom Status Bar */}
+                <StatusBar
+                  isConnected={true}
+                  hasUnsavedChanges={hasUnsavedChanges}
+                  activeFile={activeFile ? `${activeFile.filename}.${activeFile.fileExtension}` : undefined}
+                  language={activeLanguageConfig?.name || activeFile?.fileExtension || "plaintext"}
+                  encoding="UTF-8"
+                  autoSaveEnabled={true}
+                />
               </div>
             ) : (
               <div className="flex flex-col h-full items-center justify-center text-muted-foreground gap-4">
