@@ -42,7 +42,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   MoreHorizontal,
   Edit3,
@@ -86,6 +86,7 @@ export default function ProjectTable({
   onDuplicateProject,
   onMarkasFavorite,
 }: ProjectTableProps) {
+  const [localProjects, setLocalProjects] = useState<Project[]>(projects);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -98,10 +99,15 @@ export default function ProjectTable({
   const [selectedFilter, setSelectedFilter] = useState<string>("ALL");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
+  // Keep local projects in sync when props change
+  useEffect(() => {
+    setLocalProjects(projects);
+  }, [projects]);
+
   const filterOptions = ["ALL", "BLANK", "REACT", "NEXTJS", "EXPRESS", "VUE", "HONO", "ANGULAR", "STARRED"];
 
   const filteredProjects = useMemo(() => {
-    return projects.filter((project) => {
+    return localProjects.filter((project) => {
       // Search matching
       const matchesSearch =
         project.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -116,7 +122,7 @@ export default function ProjectTable({
       }
       return project.template.toUpperCase() === selectedFilter;
     });
-  }, [projects, searchQuery, selectedFilter]);
+  }, [localProjects, searchQuery, selectedFilter]);
 
   const handleEditClick = (project: Project) => {
     setSelectedProject(project);
@@ -135,13 +141,33 @@ export default function ProjectTable({
   const handleUpdateProject = async () => {
     if (!selectedProject || !onUpdateProject) return;
 
+    const updatedTitle = editData.title.trim();
+    if (!updatedTitle) {
+      toast.error("Project title cannot be empty");
+      return;
+    }
+
     setIsLoading(true);
+    // Optimistic update
+    setLocalProjects((prev) =>
+      prev.map((p) =>
+        p.id === selectedProject.id
+          ? { ...p, title: updatedTitle, description: editData.description }
+          : p
+      )
+    );
+
     try {
-      await onUpdateProject(selectedProject.id, editData);
+      await onUpdateProject(selectedProject.id, {
+        title: updatedTitle,
+        description: editData.description,
+      });
       setEditDialogOpen(false);
       setSelectedProject(null);
-      toast.success("Project updated successfully");
+      toast.success("Sandbox renamed successfully!");
     } catch (error) {
+      // Rollback on error
+      setLocalProjects(projects);
       toast.error("Failed to update project");
       console.error("Error updating project:", error);
     } finally {
@@ -152,13 +178,20 @@ export default function ProjectTable({
   const handleDeleteProject = async () => {
     if (!selectedProject || !onDeleteProject) return;
 
+    const projectIdToDelete = selectedProject.id;
     setIsLoading(true);
+
+    // Optimistic delete
+    setLocalProjects((prev) => prev.filter((p) => p.id !== projectIdToDelete));
+
     try {
-      await onDeleteProject(selectedProject.id);
+      await onDeleteProject(projectIdToDelete);
       setDeleteDialogOpen(false);
       setSelectedProject(null);
-      toast.success("Project deleted successfully");
+      toast.success("Sandbox deleted successfully!");
     } catch (error) {
+      // Rollback on error
+      setLocalProjects(projects);
       toast.error("Failed to delete project");
       console.error("Error deleting project:", error);
     } finally {
@@ -171,8 +204,11 @@ export default function ProjectTable({
 
     setIsLoading(true);
     try {
-      await onDuplicateProject(project.id);
-      toast.success("Project duplicated successfully");
+      const duplicated = await onDuplicateProject(project.id);
+      if (duplicated) {
+        setLocalProjects((prev) => [duplicated as any, ...prev]);
+      }
+      toast.success("Sandbox duplicated successfully!");
     } catch (error) {
       toast.error("Failed to duplicate project");
       console.error("Error duplicating project:", error);

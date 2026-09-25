@@ -130,12 +130,39 @@ const MainPlaygroundPage: React.FC = () => {
     setOpenFiles,
   } = useFileExplorer();
 
+  const checkHasPackageJson = (folder?: TemplateFolder | null): boolean => {
+    if (!folder || !folder.items) return false;
+    for (const item of folder.items) {
+      if ("folderName" in item) {
+        if (checkHasPackageJson(item as any)) return true;
+      } else if (item.filename === "package" && item.fileExtension === "json") {
+        return true;
+      }
+    }
+    return false;
+  };
+
   const isWebFrameworkProject = Boolean(
-    playgroundData?.template &&
-      ["REACT", "NEXTJS", "EXPRESS", "VUE", "HONO", "ANGULAR"].includes(
-        playgroundData.template
-      )
+    (playgroundData?.template &&
+      ["REACT", "NEXTJS", "EXPRESS", "VUE", "HONO", "ANGULAR", "NODE"].includes(
+        playgroundData.template.toUpperCase()
+      )) ||
+      checkHasPackageJson(templateData)
   );
+
+  // Sync preview panel visibility based on project type
+  useEffect(() => {
+    if (playgroundData || templateData) {
+      const isFramework = Boolean(
+        (playgroundData?.template &&
+          ["REACT", "NEXTJS", "EXPRESS", "VUE", "HONO", "ANGULAR", "NODE"].includes(
+            playgroundData.template.toUpperCase()
+          )) ||
+          checkHasPackageJson(templateData)
+      );
+      setIsPreviewVisible(isFramework);
+    }
+  }, [playgroundData?.template, templateData]);
 
   const {
     serverUrl,
@@ -178,14 +205,7 @@ const MainPlaygroundPage: React.FC = () => {
         openFile(first);
       }
     }
-  }, [templateData, setTemplateData, openFiles.length, openFile]);
-
-  // Adjust preview visibility: Hide preview for standalone/custom/Java/Python projects
-  React.useEffect(() => {
-    if (playgroundData?.template === "BLANK" || !isWebFrameworkProject) {
-      setIsPreviewVisible(false);
-    }
-  }, [playgroundData?.template, isWebFrameworkProject]);
+  }, [templateData, openFiles.length, setTemplateData, openFile]);
 
   // Create wrapper functions that pass saveTemplateData
   const wrappedHandleAddFile = useCallback(
